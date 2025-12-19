@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Quêtes d'Anomalies - v2.2</title>
+  <title>Quêtes d'Anomalies - v2.3</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
@@ -78,7 +78,8 @@ const PDV_SOURCES = {
   MONOPOLY: { label: "Monopole", emoji: "👑", color: "text-purple-600" },
   BOSS: { label: "Boss", emoji: "🐉", color: "text-yellow-600" },
   BONUS: { label: "Bonus", emoji: "✨", color: "text-pink-600" },
-  EVENT: { label: "Événement", emoji: "🎭", color: "text-indigo-600" }
+  EVENT: { label: "Événement", emoji: "🎭", color: "text-indigo-600" },
+  TURN: { label: "Fin de tour", emoji: "🔄", color: "text-teal-600" }
 };
 
 const BIOMES = {
@@ -233,7 +234,7 @@ const CHARACTERS = {
     role: "Support – Optimisation – Contrôle indirect",
     concept: "Manipule la chance et stabilise les situations critiques.",
     skills: [
-      "Relance un dé (coût: 1 ressource)",
+      "Relance le dé de stat (coût: 1 ressource aléatoire)",
       "Bénédiction sur soi/allié (coût: 2 ressources) - Recharge: Départ",
       "+1 PDV par quête accomplie"
     ],
@@ -291,6 +292,26 @@ function parseQuest(text) {
   }
   
   return { pdv, isExchange: false, isCombat: false };
+}
+
+// Fonction pour obtenir une ressource aléatoire disponible
+function getRandomAvailableResource(player) {
+  const available = [];
+  if (player.or > 0) available.push('or');
+  if (player.cuivre > 0) available.push('cuivre');
+  if (player.argent > 0) available.push('argent');
+  if (player.obsidienne > 0) available.push('obsidienne');
+  if (available.length === 0) return null;
+  return available[Math.floor(Math.random() * available.length)];
+}
+
+// Fonction pour compter les territoires par biome
+function countTerritoriesByBiome(territories) {
+  const counts = { FORET: 0, DESERT: 0, MONTAGNE: 0 };
+  (territories || []).forEach(t => {
+    if (counts[t.biome] !== undefined) counts[t.biome]++;
+  });
+  return counts;
 }
 
 // ============= MAIN APP =============
@@ -434,10 +455,70 @@ function TurnBasedGameApp() {
 
   const nextTurn = () => {
     const newPlayers = [...gameState.players];
-    newPlayers[gameState.currentTurn].usedAttackDice = false;
-    newPlayers[gameState.currentTurn].rerollAvailable = true;
+    const currentPlayer = newPlayers[gameState.currentTurn];
+    
+    // Calculer les ressources par territoires possédés
+    const territoryCount = countTerritoriesByBiome(currentPlayer.territories);
+    const resourceGains = {
+      cuivre: territoryCount.FORET,
+      argent: territoryCount.DESERT,
+      obsidienne: territoryCount.MONTAGNE
+    };
+    
+    // Appliquer les gains de ressources
+    currentPlayer.cuivre += resourceGains.cuivre;
+    currentPlayer.argent += resourceGains.argent;
+    currentPlayer.obsidienne += resourceGains.obsidienne;
+    
+    // Reset des flags
+    currentPlayer.usedAttackDice = false;
+    currentPlayer.rerollAvailable = true;
+    
+    // +1 PDV pour fin de tour
+    const oldPdv = currentPlayer.pdv;
+    const newPdv = oldPdv + 1;
+    currentPlayer.pdv = newPdv;
+    currentPlayer.pdvHistory = [...(currentPlayer.pdvHistory || []), {
+      id: `pdv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      amount: 1,
+      source: 'TURN',
+      details: { turn: currentPlayer.tourPlateau },
+      timestamp: Date.now()
+    }];
+    
+    // Vérifier événement majeur
+    const oldThreshold = Math.floor(oldPdv / 10);
+    const newThreshold = Math.floor(newPdv / 10);
+    let pendingEvent = gameState.pendingEvent;
+    let lastEventThreshold = gameState.lastEventThreshold || 0;
+    
+    if (newThreshold > oldThreshold && newThreshold > lastEventThreshold) {
+      const eventText = MAJOR_EVENTS[Math.floor(Math.random() * MAJOR_EVENTS.length)];
+      lastEventThreshold = newThreshold;
+      pendingEvent = { text: eventText, threshold: newThreshold * 10, playerName: currentPlayer.playerName };
+    }
+    
     const nextTurnIndex = (gameState.currentTurn + 1) % gameState.playerCount;
-    setGameState({ ...gameState, players: newPlayers, currentTurn: nextTurnIndex, eventBonus: 0 });
+    
+    // Construire le message de gains
+    let gainMsg = `🔄 Fin du tour de ${currentPlayer.playerName}\n\n🏆 +1 PDV`;
+    if (resourceGains.cuivre > 0 || resourceGains.argent > 0 || resourceGains.obsidienne > 0) {
+      gainMsg += `\n\n📦 Ressources des territoires:`;
+      if (resourceGains.cuivre > 0) gainMsg += `\n🌳 +${resourceGains.cuivre} Cuivre`;
+      if (resourceGains.argent > 0) gainMsg += `\n🏜️ +${resourceGains.argent} Argent`;
+      if (resourceGains.obsidienne > 0) gainMsg += `\n⛰️ +${resourceGains.obsidienne} Obsidienne`;
+    }
+    
+    alert(gainMsg);
+    
+    setGameState({ 
+      ...gameState, 
+      players: newPlayers, 
+      currentTurn: nextTurnIndex, 
+      eventBonus: 0,
+      pendingEvent,
+      lastEventThreshold
+    });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -497,7 +578,7 @@ function HomeScreen({ onNewGame, onLoadGame }) {
   return React.createElement("div", { className: "min-h-screen bg-gradient-to-br from-purple-900 to-blue-900 flex items-center justify-center p-6" },
     React.createElement("div", { className: "bg-white rounded-3xl shadow-2xl p-8 max-w-2xl w-full" },
       React.createElement("h1", { className: "text-4xl font-bold text-center mb-2 text-gray-800" }, "Quêtes d'Anomalies"),
-      React.createElement("p", { className: "text-center text-gray-600 mb-8" }, "Version 2.2 - Compétences complètes"),
+      React.createElement("p", { className: "text-center text-gray-600 mb-8" }, "Version 2.3 - Ressources & PDV"),
       React.createElement("button", {
         onClick: onNewGame,
         className: "w-full py-6 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl font-bold text-xl hover:from-purple-700 hover:to-blue-700 transition-colors shadow-lg mb-6"
@@ -657,6 +738,10 @@ function TurnGameScreen({ gameState, setGameState, updateCurrentPlayer, updatePl
   const [activeTab, setActiveTab] = useState('anomalie');
   const currentPlayer = gameState.players[gameState.currentTurn];
 
+  // Calcul des gains de fin de tour
+  const territoryCount = countTerritoriesByBiome(currentPlayer.territories);
+  const totalTerritories = territoryCount.FORET + territoryCount.DESERT + territoryCount.MONTAGNE;
+
   useEffect(() => {
     if (currentPlayer.pvCurrent === 0) {
       alert(`${currentPlayer.playerName} est mort ! Retour à la case départ.`);
@@ -724,6 +809,16 @@ function TurnGameScreen({ gameState, setGameState, updateCurrentPlayer, updatePl
           activeTab === 'etats' && React.createElement(EtatsTab, { player: currentPlayer, updateCurrentPlayer }),
           activeTab === 'pdv' && React.createElement(PdvHistoryTab, { player: currentPlayer, gameState })
         ),
+        React.createElement("div", { className: "bg-amber-50 border-2 border-amber-300 rounded-xl p-4 mb-4" },
+          React.createElement("h4", { className: "font-bold text-amber-800 mb-2" }, "📦 Gains en fin de tour:"),
+          React.createElement("div", { className: "flex gap-4 flex-wrap text-sm" },
+            React.createElement("span", { className: "text-amber-700 font-semibold" }, "🏆 +1 PDV"),
+            territoryCount.FORET > 0 && React.createElement("span", { className: "text-amber-700" }, `🌳 +${territoryCount.FORET} Cuivre`),
+            territoryCount.DESERT > 0 && React.createElement("span", { className: "text-amber-700" }, `🏜️ +${territoryCount.DESERT} Argent`),
+            territoryCount.MONTAGNE > 0 && React.createElement("span", { className: "text-amber-700" }, `⛰️ +${territoryCount.MONTAGNE} Obsidienne`),
+            totalTerritories === 0 && React.createElement("span", { className: "text-gray-500 italic" }, "(Pas de territoires)")
+          )
+        ),
         React.createElement("div", { className: "grid grid-cols-3 gap-4" },
           React.createElement("button", { onClick: nextTurn, className: "py-4 bg-gradient-to-r from-green-600 to-teal-600 text-white rounded-xl font-bold text-lg hover:from-green-700 hover:to-teal-700 transition-colors shadow-lg" }, "✓ Fin du tour"),
           React.createElement("button", { onClick: onBackToHome, className: "py-4 bg-blue-600 text-white rounded-xl font-bold text-lg hover:bg-blue-700 transition-colors shadow-lg" }, "🏠 Accueil"),
@@ -788,6 +883,9 @@ function DeTab({ player, gameState, updateCurrentPlayer }) {
   const [attackResult, setAttackResult] = useState(null);
   const [isAnimating, setIsAnimating] = useState(false);
 
+  const canReroll = rulesEngine.canReroll(player);
+  const hasResources = player.or > 0 || player.cuivre > 0 || player.argent > 0 || player.obsidienne > 0;
+
   const rollMoveDice = () => {
     setIsAnimating(true);
     setMoveResult(null);
@@ -816,6 +914,39 @@ function DeTab({ player, gameState, updateCurrentPlayer }) {
       setAttackResult({ stat, statKey, diceRoll, baseStat, effectsBonus, eventBonus: gameState.eventBonus || 0, total, isCritical: diceRoll === 0 });
       updateCurrentPlayer({ usedAttackDice: true });
       setIsAnimating(false);
+    }, 800);
+  };
+
+  const rerollStat = () => {
+    if (!canReroll) return;
+    if (!hasResources) return alert("Pas de ressources disponibles !");
+    if (!attackResult) return;
+
+    // Prendre une ressource aléatoire
+    const resourceToTake = getRandomAvailableResource(player);
+    if (!resourceToTake) return alert("Pas de ressources disponibles !");
+
+    const resourceNames = { or: 'Or', cuivre: 'Cuivre', argent: 'Argent', obsidienne: 'Obsidienne' };
+
+    setIsAnimating(true);
+
+    setTimeout(() => {
+      const statIndex = Math.floor(Math.random() * STATISTIQUES.length);
+      const stat = STATISTIQUES[statIndex];
+      const statKey = STAT_MAPPING[stat];
+
+      const diceRoll = Math.floor(Math.random() * 10);
+      const baseStat = player.baseStats[statKey] || 0;
+      const effectsBonus = player.effects.filter(e => e.stat === statKey).reduce((sum, e) => sum + e.delta, 0);
+      const total = diceRoll + baseStat + effectsBonus + (gameState.eventBonus || 0);
+
+      setAttackResult({ stat, statKey, diceRoll, baseStat, effectsBonus, eventBonus: gameState.eventBonus || 0, total, isCritical: diceRoll === 0 });
+      
+      // Déduire la ressource
+      updateCurrentPlayer({ [resourceToTake]: player[resourceToTake] - 1 });
+      
+      setIsAnimating(false);
+      alert(`🔄 Relance ! -1 ${resourceNames[resourceToTake]}\nNouvelle stat: ${stat}`);
     }, 800);
   };
 
@@ -850,7 +981,14 @@ function DeTab({ player, gameState, updateCurrentPlayer }) {
           )
         ) : React.createElement("p", { className: "text-gray-300 text-center italic" }, "Lancer le dé d'attaque")
       ),
-      React.createElement("button", { onClick: rollAttackDice, disabled: isAnimating || player.usedAttackDice, className: "w-full py-3 bg-red-600 text-white rounded-xl font-semibold hover:bg-red-700 transition-colors disabled:opacity-50" }, "⚔️ Lancer Attaque (Stat aléatoire)")
+      React.createElement("div", { className: "space-y-2" },
+        React.createElement("button", { onClick: rollAttackDice, disabled: isAnimating || player.usedAttackDice, className: "w-full py-3 bg-red-600 text-white rounded-xl font-semibold hover:bg-red-700 transition-colors disabled:opacity-50" }, "⚔️ Lancer Attaque (Stat aléatoire)"),
+        canReroll && attackResult && React.createElement("button", { 
+          onClick: rerollStat, 
+          disabled: isAnimating || !hasResources,
+          className: `w-full py-3 rounded-xl font-semibold transition-colors ${hasResources ? 'bg-purple-600 text-white hover:bg-purple-700' : 'bg-gray-300 text-gray-500'}`
+        }, `🔄 Relancer la stat (Vicaire) - Coût: 1 ressource aléatoire`)
+      )
     )
   );
 }
@@ -1053,13 +1191,16 @@ function BiomeTab({ player, gameState, updateCurrentPlayer, addPdvWithHistory, p
     const cost = isNeutral ? difficulty : 10;
     if (player.or < cost) return alert(`Or insuffisant ! (${cost} Or requis)`);
     
+    const biomeResource = BIOMES[selectedBiome].resource;
+    
     updateCurrentPlayer({ 
       or: player.or - cost,
-      territories: [...(player.territories || []), { id: `t_${Date.now()}`, biome: selectedBiome }]
+      territories: [...(player.territories || []), { id: `t_${Date.now()}`, biome: selectedBiome }],
+      [biomeResource]: player[biomeResource] + 1
     });
     if (isNeutral) addPdvWithHistory(playerIndex, 1, 'TERRITORY', { biome: BIOMES[selectedBiome].name, method: 'achat' });
     
-    setResult({ success: true, bought: true, cost, isNeutral });
+    setResult({ success: true, bought: true, cost, isNeutral, resourceGained: biomeResource });
   };
 
   const startAttack = () => {
@@ -1102,7 +1243,9 @@ function BiomeTab({ player, gameState, updateCurrentPlayer, addPdvWithHistory, p
       if (heal > 0) newPv = Math.min(player.character.pvMax, newPv + heal);
     }
 
-    setResult({ biome: BIOMES[selectedBiome], stat: statName, diceRoll, baseStat, effectsBonus, skillBonus, sacrifice: sac, total, difficulty, success, damage, isRanged, isNeutral, isCritical, heal });
+    const biomeResource = BIOMES[selectedBiome].resource;
+
+    setResult({ biome: BIOMES[selectedBiome], stat: statName, diceRoll, baseStat, effectsBonus, skillBonus, sacrifice: sac, total, difficulty, success, damage, isRanged, isNeutral, isCritical, heal, resourceGained: success ? biomeResource : null });
     
     if (success) {
       // PDV seulement si territoire neutre
@@ -1110,7 +1253,8 @@ function BiomeTab({ player, gameState, updateCurrentPlayer, addPdvWithHistory, p
       updateCurrentPlayer({ 
         usedAttackDice: true, 
         territories: [...(player.territories || []), { id: `t_${Date.now()}`, biome: selectedBiome }],
-        pvCurrent: Math.max(0, newPv)
+        pvCurrent: Math.max(0, newPv),
+        [biomeResource]: player[biomeResource] + 1
       });
     } else if (damage > 0) {
       updateCurrentPlayer({ usedAttackDice: true, pvCurrent: Math.max(0, newPv - damage) });
@@ -1149,7 +1293,8 @@ function BiomeTab({ player, gameState, updateCurrentPlayer, addPdvWithHistory, p
           React.createElement("div", { className: "text-3xl mb-2" }, "🪙"),
           React.createElement("div", { className: "text-2xl font-bold" }, "TERRITOIRE ACHETÉ !"),
           React.createElement("div", { className: "mt-4" }, `Coût: ${result.cost} Or`),
-          result.isNeutral && React.createElement("div", { className: "mt-2 p-2 bg-white bg-opacity-20 rounded" }, "🏆 +1 PDV")
+          result.isNeutral && React.createElement("div", { className: "mt-2 p-2 bg-white bg-opacity-20 rounded" }, "🏆 +1 PDV"),
+          React.createElement("div", { className: "mt-2 p-2 bg-amber-500 bg-opacity-50 rounded" }, `📦 +1 ${result.resourceGained}`)
         ),
         React.createElement("button", { onClick: () => setResult(null), className: "w-full py-3 bg-gray-600 text-white rounded-xl font-semibold" }, "Fermer")
       );
@@ -1172,6 +1317,7 @@ function BiomeTab({ player, gameState, updateCurrentPlayer, addPdvWithHistory, p
         ),
         result.success && result.isNeutral && React.createElement("div", { className: "mt-4 p-3 bg-white bg-opacity-20 rounded-lg" }, "🏆 +1 PDV - Territoire conquis !"),
         result.success && !result.isNeutral && React.createElement("div", { className: "mt-4 p-3 bg-white bg-opacity-20 rounded-lg" }, "🏰 Territoire adverse capturé ! (pas de PDV)"),
+        result.success && result.resourceGained && React.createElement("div", { className: "mt-2 p-3 bg-amber-500 bg-opacity-50 rounded-lg" }, `📦 +1 ${result.resourceGained}`),
         result.success && result.heal > 0 && React.createElement("div", { className: "mt-2 p-3 bg-green-500 bg-opacity-50 rounded-lg" }, `💚 Régénération: +${result.heal} PV`),
         !result.success && result.damage > 0 && React.createElement("div", { className: "mt-4 p-3 bg-white bg-opacity-20 rounded-lg" }, `💥 Dégâts subis: ${result.damage} PV`),
         !result.success && result.damage === 0 && result.isRanged && React.createElement("div", { className: "mt-4 p-3 bg-white bg-opacity-20 rounded-lg" }, "🏹 Attaque à distance: pas de dégâts !")
@@ -1185,6 +1331,9 @@ function BiomeTab({ player, gameState, updateCurrentPlayer, addPdvWithHistory, p
     player.usedAttackDice && React.createElement("div", { className: "p-3 bg-yellow-50 border-2 border-yellow-300 rounded-lg text-center" },
       React.createElement("p", { className: "text-yellow-800 font-semibold" }, "⚠️ Jet d'attaque déjà utilisé ce tour")
     ),
+    React.createElement("div", { className: "p-3 bg-green-50 border-2 border-green-300 rounded-lg text-center" },
+      React.createElement("p", { className: "text-green-800 text-sm font-semibold" }, "🎁 Victoire = +1 ressource du biome conquis !")
+    ),
     React.createElement("div", null,
       React.createElement("h4", { className: "font-bold text-gray-700 mb-3" }, "Sélectionnez un biome"),
       React.createElement("div", { className: "grid grid-cols-3 gap-3" },
@@ -1193,7 +1342,8 @@ function BiomeTab({ player, gameState, updateCurrentPlayer, addPdvWithHistory, p
           className: `p-4 rounded-xl border-2 ${selectedBiome === key ? 'border-purple-600 ring-4 ring-purple-300' : 'border-gray-300 hover:border-purple-400'} bg-gradient-to-br ${biome.color} text-white`
         },
           React.createElement("div", { className: "text-3xl mb-2" }, biome.emoji),
-          React.createElement("div", { className: "text-xs font-bold" }, biome.name.split(' ')[0])
+          React.createElement("div", { className: "text-xs font-bold" }, biome.name.split(' ')[0]),
+          React.createElement("div", { className: "text-xs opacity-75 mt-1" }, `+1 ${biome.resource}`)
         ))
       )
     ),
