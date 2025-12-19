@@ -79,7 +79,7 @@ const PDV_SOURCES = {
   BOSS: { label: "Boss", emoji: "🐉", color: "text-yellow-600" },
   BONUS: { label: "Bonus", emoji: "✨", color: "text-pink-600" },
   EVENT: { label: "Événement", emoji: "🎭", color: "text-indigo-600" },
-  TURN: { label: "Fin de tour", emoji: "🔄", color: "text-teal-600" }
+  START: { label: "Passage Départ", emoji: "🏁", color: "text-teal-600" }
 };
 
 const BIOMES = {
@@ -428,21 +428,24 @@ function TurnBasedGameApp() {
       if (!prev) return prev;
       const newPlayers = [...prev.players];
       const player = newPlayers[playerIndex];
-      const oldPdv = player.pdv;
-      const newPdv = oldPdv + amount;
+      const newPdv = player.pdv + amount;
       
       const historyEntry = { id: `pdv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`, amount, source, details, timestamp: Date.now() };
       
       newPlayers[playerIndex] = { ...player, pdv: newPdv, pdvHistory: [...(player.pdvHistory || []), historyEntry] };
       
-      const oldThreshold = Math.floor(oldPdv / 10);
-      const newThreshold = Math.floor(newPdv / 10);
+      // Calculer le total des PDV de tous les joueurs
+      const oldTotalPdv = prev.players.reduce((sum, p) => sum + p.pdv, 0);
+      const newTotalPdv = newPlayers.reduce((sum, p) => sum + p.pdv, 0);
+      
+      const oldThreshold = Math.floor(oldTotalPdv / 10);
+      const newThreshold = Math.floor(newTotalPdv / 10);
       let newState = { ...prev, players: newPlayers };
       
       if (newThreshold > oldThreshold && newThreshold > (prev.lastEventThreshold || 0)) {
         const eventText = MAJOR_EVENTS[Math.floor(Math.random() * MAJOR_EVENTS.length)];
         newState.lastEventThreshold = newThreshold;
-        newState.pendingEvent = { text: eventText, threshold: newThreshold * 10, playerName: player.playerName };
+        newState.pendingEvent = { text: eventText, threshold: newThreshold * 10, totalPdv: newTotalPdv };
       }
       
       return newState;
@@ -457,67 +460,17 @@ function TurnBasedGameApp() {
     const newPlayers = [...gameState.players];
     const currentPlayer = newPlayers[gameState.currentTurn];
     
-    // Calculer les ressources par territoires possédés
-    const territoryCount = countTerritoriesByBiome(currentPlayer.territories);
-    const resourceGains = {
-      cuivre: territoryCount.FORET,
-      argent: territoryCount.DESERT,
-      obsidienne: territoryCount.MONTAGNE
-    };
-    
-    // Appliquer les gains de ressources
-    currentPlayer.cuivre += resourceGains.cuivre;
-    currentPlayer.argent += resourceGains.argent;
-    currentPlayer.obsidienne += resourceGains.obsidienne;
-    
-    // Reset des flags
+    // Reset des flags seulement
     currentPlayer.usedAttackDice = false;
     currentPlayer.rerollAvailable = true;
     
-    // +1 PDV pour fin de tour
-    const oldPdv = currentPlayer.pdv;
-    const newPdv = oldPdv + 1;
-    currentPlayer.pdv = newPdv;
-    currentPlayer.pdvHistory = [...(currentPlayer.pdvHistory || []), {
-      id: `pdv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      amount: 1,
-      source: 'TURN',
-      details: { turn: currentPlayer.tourPlateau },
-      timestamp: Date.now()
-    }];
-    
-    // Vérifier événement majeur
-    const oldThreshold = Math.floor(oldPdv / 10);
-    const newThreshold = Math.floor(newPdv / 10);
-    let pendingEvent = gameState.pendingEvent;
-    let lastEventThreshold = gameState.lastEventThreshold || 0;
-    
-    if (newThreshold > oldThreshold && newThreshold > lastEventThreshold) {
-      const eventText = MAJOR_EVENTS[Math.floor(Math.random() * MAJOR_EVENTS.length)];
-      lastEventThreshold = newThreshold;
-      pendingEvent = { text: eventText, threshold: newThreshold * 10, playerName: currentPlayer.playerName };
-    }
-    
     const nextTurnIndex = (gameState.currentTurn + 1) % gameState.playerCount;
-    
-    // Construire le message de gains
-    let gainMsg = `🔄 Fin du tour de ${currentPlayer.playerName}\n\n🏆 +1 PDV`;
-    if (resourceGains.cuivre > 0 || resourceGains.argent > 0 || resourceGains.obsidienne > 0) {
-      gainMsg += `\n\n📦 Ressources des territoires:`;
-      if (resourceGains.cuivre > 0) gainMsg += `\n🌳 +${resourceGains.cuivre} Cuivre`;
-      if (resourceGains.argent > 0) gainMsg += `\n🏜️ +${resourceGains.argent} Argent`;
-      if (resourceGains.obsidienne > 0) gainMsg += `\n⛰️ +${resourceGains.obsidienne} Obsidienne`;
-    }
-    
-    alert(gainMsg);
     
     setGameState({ 
       ...gameState, 
       players: newPlayers, 
       currentTurn: nextTurnIndex, 
-      eventBonus: 0,
-      pendingEvent,
-      lastEventThreshold
+      eventBonus: 0
     });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -666,10 +619,18 @@ function CharacterSelectScreen({ playerNumber, totalPlayers, selectedCharacters,
             className: `bg-white rounded-xl shadow-lg p-4 transition-all ${isSelected ? 'opacity-40 cursor-not-allowed' : isCurrentlySelected ? 'ring-4 ring-purple-600 transform scale-105 cursor-pointer' : 'hover:shadow-xl cursor-pointer'}`
           },
             isSelected && React.createElement("div", { className: "text-center mb-2" }, React.createElement("span", { className: "bg-red-600 text-white px-3 py-1 rounded-full text-xs font-bold" }, "PRIS")),
-            React.createElement("h4", { className: "font-bold text-lg mb-2 text-gray-800" }, char.name),
+            React.createElement("h4", { className: "font-bold text-lg mb-1 text-gray-800" }, char.name),
             React.createElement("div", { className: "text-sm text-purple-600 font-semibold mb-2" }, `❤️ ${char.pvMax} PV`),
-            React.createElement("div", { className: "text-sm text-gray-600 mb-2" }, React.createElement("strong", null, "Rôle:"), ` ${char.role}`),
-            React.createElement("div", { className: "text-xs text-gray-500" }, char.concept)
+            React.createElement("div", { className: "text-sm text-gray-600 mb-2" }, React.createElement("strong", null, "Rôle: "), char.role),
+            React.createElement("div", { className: "border-t border-gray-200 pt-2 mt-2" },
+              React.createElement("div", { className: "text-xs font-semibold text-gray-700 mb-1" }, "Compétences:"),
+              React.createElement("ul", { className: "text-xs text-gray-600 space-y-1" },
+                char.skills.map((skill, idx) => React.createElement("li", { key: idx, className: "flex items-start gap-1" },
+                  React.createElement("span", { className: "text-purple-500" }, "•"),
+                  React.createElement("span", null, skill)
+                ))
+              )
+            )
           );
         })
       ),
@@ -752,16 +713,24 @@ function TurnGameScreen({ gameState, setGameState, updateCurrentPlayer, updatePl
   useEffect(() => {
     if (gameState.pendingEvent) {
       setTimeout(() => {
-        alert(`🎭 ÉVÉNEMENT MAJEUR - ${gameState.pendingEvent.threshold} PDV atteints !\n\n${gameState.pendingEvent.text}\n\n(Déclenché par: ${gameState.pendingEvent.playerName})`);
+        const totalPdv = gameState.players.reduce((sum, p) => sum + p.pdv, 0);
+        alert(`🎭 ÉVÉNEMENT MAJEUR !\n\nTotal des PDV: ${totalPdv}\n\n${gameState.pendingEvent.text}`);
         clearPendingEvent();
       }, 500);
     }
   }, [gameState.pendingEvent]);
 
+  // Calculer le total PDV de tous les joueurs
+  const totalPdv = gameState.players.reduce((sum, p) => sum + p.pdv, 0);
+  const nextEventAt = Math.ceil((totalPdv + 1) / 10) * 10;
+
   return React.createElement("div", { className: "min-h-screen bg-gradient-to-br from-purple-100 to-blue-100 flex flex-col" },
     React.createElement("div", { className: "bg-gradient-to-r from-purple-600 to-blue-600 text-white shadow-lg p-4" },
       React.createElement("div", { className: "max-w-4xl mx-auto" },
-        React.createElement("div", { className: "text-sm font-semibold mb-1" }, `JOUEUR ${gameState.currentTurn + 1}`),
+        React.createElement("div", { className: "flex items-center justify-between mb-1" },
+          React.createElement("div", { className: "text-sm font-semibold" }, `JOUEUR ${gameState.currentTurn + 1}`),
+          React.createElement("div", { className: "text-xs bg-white bg-opacity-20 px-2 py-1 rounded" }, `Total PDV: ${totalPdv} | Événement: ${nextEventAt}`)
+        ),
         React.createElement("div", { className: "flex items-center justify-between" },
           React.createElement("div", null,
             React.createElement("h2", { className: "text-2xl font-bold" }, currentPlayer.playerName),
@@ -779,18 +748,18 @@ function TurnGameScreen({ gameState, setGameState, updateCurrentPlayer, updatePl
         React.createElement("div", { className: "flex" },
           ['anomalie', 'quete', 'de', 'biome', 'boss', 'combat', 'sorts', 'personnage', 'etats', 'pdv'].map(tab => React.createElement("button", {
             key: tab, onClick: () => setActiveTab(tab),
-            className: `flex-shrink-0 px-3 py-3 font-semibold transition-colors border-b-4 text-sm ${activeTab === tab ? 'bg-blue-600 text-white border-blue-800' : 'bg-gray-100 text-gray-600 border-transparent hover:bg-gray-200'}`
+            className: `flex-shrink-0 px-3 py-3 font-semibold transition-colors border-b-4 text-xs ${activeTab === tab ? 'bg-blue-600 text-white border-blue-800' : 'bg-gray-100 text-gray-600 border-transparent hover:bg-gray-200'}`
           },
-            tab === 'anomalie' && '🎴',
-            tab === 'quete' && '📜',
-            tab === 'de' && '🎲',
-            tab === 'biome' && '🏔️',
-            tab === 'boss' && '🐉',
-            tab === 'combat' && '⚔️',
-            tab === 'sorts' && '🔮',
-            tab === 'personnage' && '👤',
-            tab === 'etats' && '✨',
-            tab === 'pdv' && '🏆'
+            tab === 'anomalie' && 'Anomalie',
+            tab === 'quete' && 'Quête',
+            tab === 'de' && 'Dé',
+            tab === 'biome' && 'Biome',
+            tab === 'boss' && 'Boss',
+            tab === 'combat' && 'Combat',
+            tab === 'sorts' && 'Sorts',
+            tab === 'personnage' && 'Perso',
+            tab === 'etats' && 'États',
+            tab === 'pdv' && 'PDV'
           ))
         )
       )
@@ -805,17 +774,17 @@ function TurnGameScreen({ gameState, setGameState, updateCurrentPlayer, updatePl
           activeTab === 'boss' && React.createElement(BossTab, { player: currentPlayer, gameState, updateCurrentPlayer, addPdvWithHistory, playerIndex: gameState.currentTurn }),
           activeTab === 'combat' && React.createElement(CombatTab, { player: currentPlayer, gameState, updateCurrentPlayer, updatePlayer, addPdvWithHistory }),
           activeTab === 'sorts' && React.createElement(SortsTab, { player: currentPlayer, gameState, updateCurrentPlayer, updatePlayer }),
-          activeTab === 'personnage' && React.createElement(PersonnageTab, { player: currentPlayer, updateCurrentPlayer, gameState, setGameState }),
+          activeTab === 'personnage' && React.createElement(PersonnageTab, { player: currentPlayer, updateCurrentPlayer, gameState, setGameState, addPdvWithHistory, playerIndex: gameState.currentTurn }),
           activeTab === 'etats' && React.createElement(EtatsTab, { player: currentPlayer, updateCurrentPlayer }),
           activeTab === 'pdv' && React.createElement(PdvHistoryTab, { player: currentPlayer, gameState })
         ),
-        React.createElement("div", { className: "bg-amber-50 border-2 border-amber-300 rounded-xl p-4 mb-4" },
-          React.createElement("h4", { className: "font-bold text-amber-800 mb-2" }, "📦 Gains en fin de tour:"),
+        React.createElement("div", { className: "bg-teal-50 border-2 border-teal-300 rounded-xl p-4 mb-4" },
+          React.createElement("h4", { className: "font-bold text-teal-800 mb-2" }, "🏁 Au prochain passage par Départ:"),
           React.createElement("div", { className: "flex gap-4 flex-wrap text-sm" },
-            React.createElement("span", { className: "text-amber-700 font-semibold" }, "🏆 +1 PDV"),
-            territoryCount.FORET > 0 && React.createElement("span", { className: "text-amber-700" }, `🌳 +${territoryCount.FORET} Cuivre`),
-            territoryCount.DESERT > 0 && React.createElement("span", { className: "text-amber-700" }, `🏜️ +${territoryCount.DESERT} Argent`),
-            territoryCount.MONTAGNE > 0 && React.createElement("span", { className: "text-amber-700" }, `⛰️ +${territoryCount.MONTAGNE} Obsidienne`),
+            React.createElement("span", { className: "text-teal-700 font-semibold" }, "🏆 +1 PDV"),
+            territoryCount.FORET > 0 && React.createElement("span", { className: "text-teal-700" }, `🌳 +${territoryCount.FORET} Cuivre`),
+            territoryCount.DESERT > 0 && React.createElement("span", { className: "text-teal-700" }, `🏜️ +${territoryCount.DESERT} Argent`),
+            territoryCount.MONTAGNE > 0 && React.createElement("span", { className: "text-teal-700" }, `⛰️ +${territoryCount.MONTAGNE} Obsidienne`),
             totalTerritories === 0 && React.createElement("span", { className: "text-gray-500 italic" }, "(Pas de territoires)")
           )
         ),
@@ -882,6 +851,7 @@ function DeTab({ player, gameState, updateCurrentPlayer }) {
   const [moveResult, setMoveResult] = useState(null);
   const [attackResult, setAttackResult] = useState(null);
   const [isAnimating, setIsAnimating] = useState(false);
+  const [showStatChoice, setShowStatChoice] = useState(false);
 
   const canReroll = rulesEngine.canReroll(player);
   const hasResources = player.or > 0 || player.cuivre > 0 || player.argent > 0 || player.obsidienne > 0;
@@ -917,7 +887,7 @@ function DeTab({ player, gameState, updateCurrentPlayer }) {
     }, 800);
   };
 
-  const rerollStat = () => {
+  const changeStat = (newStatKey, newStatName) => {
     if (!canReroll) return;
     if (!hasResources) return alert("Pas de ressources disponibles !");
     if (!attackResult) return;
@@ -928,30 +898,57 @@ function DeTab({ player, gameState, updateCurrentPlayer }) {
 
     const resourceNames = { or: 'Or', cuivre: 'Cuivre', argent: 'Argent', obsidienne: 'Obsidienne' };
 
-    setIsAnimating(true);
+    // Recalculer avec la nouvelle stat mais le même dé
+    const baseStat = player.baseStats[newStatKey] || 0;
+    const effectsBonus = player.effects.filter(e => e.stat === newStatKey).reduce((sum, e) => sum + e.delta, 0);
+    const total = attackResult.diceRoll + baseStat + effectsBonus + (gameState.eventBonus || 0);
 
-    setTimeout(() => {
-      const statIndex = Math.floor(Math.random() * STATISTIQUES.length);
-      const stat = STATISTIQUES[statIndex];
-      const statKey = STAT_MAPPING[stat];
-
-      const diceRoll = Math.floor(Math.random() * 10);
-      const baseStat = player.baseStats[statKey] || 0;
-      const effectsBonus = player.effects.filter(e => e.stat === statKey).reduce((sum, e) => sum + e.delta, 0);
-      const total = diceRoll + baseStat + effectsBonus + (gameState.eventBonus || 0);
-
-      setAttackResult({ stat, statKey, diceRoll, baseStat, effectsBonus, eventBonus: gameState.eventBonus || 0, total, isCritical: diceRoll === 0 });
-      
-      // Déduire la ressource
-      updateCurrentPlayer({ [resourceToTake]: player[resourceToTake] - 1 });
-      
-      setIsAnimating(false);
-      alert(`🔄 Relance ! -1 ${resourceNames[resourceToTake]}\nNouvelle stat: ${stat}`);
-    }, 800);
+    setAttackResult({ 
+      ...attackResult, 
+      stat: newStatName, 
+      statKey: newStatKey, 
+      baseStat, 
+      effectsBonus, 
+      total 
+    });
+    
+    // Déduire la ressource
+    updateCurrentPlayer({ [resourceToTake]: player[resourceToTake] - 1 });
+    setShowStatChoice(false);
+    
+    alert(`🔄 Stat changée ! -1 ${resourceNames[resourceToTake]}\nNouvelle stat: ${newStatName}`);
   };
+
+  // Écran de choix de stat pour Vicaire
+  if (showStatChoice && attackResult) {
+    return React.createElement("div", { className: "space-y-6" },
+      React.createElement("h3", { className: "text-xl font-bold text-center text-gray-800" }, "🔄 Changer de statistique"),
+      React.createElement("p", { className: "text-center text-purple-600" }, "Choisissez une nouvelle statistique (même dé: ", attackResult.diceRoll, ")"),
+      React.createElement("div", { className: "grid grid-cols-2 gap-3" },
+        Object.entries(STAT_NAMES).map(([key, name]) => {
+          const baseStat = player.baseStats[key] || 0;
+          const effectsBonus = player.effects.filter(e => e.stat === key).reduce((sum, e) => sum + e.delta, 0);
+          const newTotal = attackResult.diceRoll + baseStat + effectsBonus + (gameState.eventBonus || 0);
+          const isCurrentStat = key === attackResult.statKey;
+          return React.createElement("button", { 
+            key, 
+            onClick: () => !isCurrentStat && changeStat(key, name),
+            className: `p-4 rounded-xl border-2 ${isCurrentStat ? 'border-gray-300 bg-gray-100 opacity-50' : 'border-purple-400 bg-purple-50 hover:bg-purple-100'} text-left`
+          },
+            React.createElement("div", { className: "font-bold text-gray-800" }, name),
+            React.createElement("div", { className: "text-sm text-gray-600" }, `Base: ${baseStat >= 0 ? '+' : ''}${baseStat} | États: ${effectsBonus >= 0 ? '+' : ''}${effectsBonus}`),
+            React.createElement("div", { className: "text-xl font-bold text-purple-600 mt-1" }, `Total: ${newTotal}`)
+          );
+        })
+      ),
+      React.createElement("button", { onClick: () => setShowStatChoice(false), className: "w-full py-3 bg-gray-600 text-white rounded-xl font-semibold" }, "Annuler")
+    );
+  }
 
   return React.createElement("div", { className: "space-y-6" },
     React.createElement("h3", { className: "text-2xl font-bold text-center text-gray-800" }, "Lancés de Dés"),
+    
+    // Dé de déplacement
     React.createElement("div", { className: "bg-white border-2 border-gray-300 rounded-xl p-6" },
       React.createElement("h4", { className: "text-lg font-bold text-gray-800 mb-4 text-center" }, "🎲 Dé de Déplacement"),
       React.createElement("div", { className: `min-h-[150px] bg-gradient-to-r from-blue-600 to-blue-800 rounded-xl p-6 flex flex-col items-center justify-center mb-4 ${isAnimating ? 'animate-pulse' : ''}` },
@@ -962,32 +959,52 @@ function DeTab({ player, gameState, updateCurrentPlayer }) {
       ),
       React.createElement("button", { onClick: rollMoveDice, disabled: isAnimating, className: "w-full py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50" }, "🎲 Lancer Déplacement (0-9)")
     ),
+    
+    // Dé d'attaque
     React.createElement("div", { className: "bg-white border-2 border-gray-300 rounded-xl p-6" },
       React.createElement("h4", { className: "text-lg font-bold text-gray-800 mb-4 text-center" }, "⚔️ Dé d'Attaque"),
       player.usedAttackDice && React.createElement("div", { className: "mb-4 p-3 bg-yellow-50 border-2 border-yellow-300 rounded-lg text-center" },
         React.createElement("p", { className: "text-sm font-semibold text-yellow-800" }, "⚠️ Jet d'attaque déjà utilisé ce tour")
       ),
-      React.createElement("div", { className: `min-h-[200px] bg-gradient-to-r from-red-600 to-red-800 rounded-xl p-6 flex flex-col items-center justify-center mb-4 ${isAnimating ? 'animate-pulse' : ''}` },
+      React.createElement("div", { className: `min-h-[250px] bg-gradient-to-r from-red-600 to-red-800 rounded-xl p-6 flex flex-col items-center justify-center mb-4 ${isAnimating ? 'animate-pulse' : ''}` },
         attackResult ? React.createElement("div", { className: "w-full" },
           React.createElement("div", { className: "text-center mb-4" },
             attackResult.isCritical && React.createElement("div", { className: "text-xl font-bold text-yellow-300 mb-2" }, "✨ CRITIQUE ! ✨"),
             React.createElement("div", { className: "text-2xl font-bold text-yellow-300 mb-2" }, attackResult.stat),
             React.createElement("div", { className: "text-6xl font-bold text-white mb-4" }, attackResult.total)
           ),
-          React.createElement("div", { className: "bg-white bg-opacity-20 rounded-lg p-4 text-white" },
-            React.createElement("div", { className: "flex justify-between mb-2" }, React.createElement("span", null, "Dé :"), React.createElement("span", { className: "font-bold" }, attackResult.diceRoll)),
-            React.createElement("div", { className: "flex justify-between mb-2" }, React.createElement("span", null, "Stat de base :"), React.createElement("span", { className: "font-bold" }, attackResult.baseStat > 0 ? `+${attackResult.baseStat}` : attackResult.baseStat)),
-            React.createElement("div", { className: "flex justify-between" }, React.createElement("span", null, "États :"), React.createElement("span", { className: `font-bold ${attackResult.effectsBonus >= 0 ? 'text-green-300' : 'text-red-300'}` }, attackResult.effectsBonus > 0 ? `+${attackResult.effectsBonus}` : attackResult.effectsBonus))
+          React.createElement("div", { className: "bg-white bg-opacity-20 rounded-lg p-4 text-white space-y-2" },
+            React.createElement("div", { className: "flex justify-between" }, 
+              React.createElement("span", null, "🎲 Dé (0-9) :"), 
+              React.createElement("span", { className: "font-bold text-xl" }, attackResult.diceRoll)
+            ),
+            React.createElement("div", { className: "flex justify-between" }, 
+              React.createElement("span", null, `📊 ${attackResult.stat} (base) :`), 
+              React.createElement("span", { className: "font-bold" }, attackResult.baseStat > 0 ? `+${attackResult.baseStat}` : attackResult.baseStat)
+            ),
+            React.createElement("div", { className: "flex justify-between" }, 
+              React.createElement("span", null, "✨ États/Effets :"), 
+              React.createElement("span", { className: `font-bold ${attackResult.effectsBonus >= 0 ? 'text-green-300' : 'text-red-300'}` }, attackResult.effectsBonus > 0 ? `+${attackResult.effectsBonus}` : attackResult.effectsBonus)
+            ),
+            attackResult.eventBonus > 0 && React.createElement("div", { className: "flex justify-between" }, 
+              React.createElement("span", null, "🎭 Bonus événement :"), 
+              React.createElement("span", { className: "font-bold text-yellow-300" }, `+${attackResult.eventBonus}`)
+            ),
+            React.createElement("hr", { className: "border-white border-opacity-30 my-2" }),
+            React.createElement("div", { className: "flex justify-between text-lg" }, 
+              React.createElement("span", { className: "font-bold" }, "TOTAL :"), 
+              React.createElement("span", { className: "font-bold text-2xl" }, attackResult.total)
+            )
           )
         ) : React.createElement("p", { className: "text-gray-300 text-center italic" }, "Lancer le dé d'attaque")
       ),
       React.createElement("div", { className: "space-y-2" },
         React.createElement("button", { onClick: rollAttackDice, disabled: isAnimating || player.usedAttackDice, className: "w-full py-3 bg-red-600 text-white rounded-xl font-semibold hover:bg-red-700 transition-colors disabled:opacity-50" }, "⚔️ Lancer Attaque (Stat aléatoire)"),
         canReroll && attackResult && React.createElement("button", { 
-          onClick: rerollStat, 
-          disabled: isAnimating || !hasResources,
+          onClick: () => setShowStatChoice(true), 
+          disabled: !hasResources,
           className: `w-full py-3 rounded-xl font-semibold transition-colors ${hasResources ? 'bg-purple-600 text-white hover:bg-purple-700' : 'bg-gray-300 text-gray-500'}`
-        }, `🔄 Relancer la stat (Vicaire) - Coût: 1 ressource aléatoire`)
+        }, `🔄 Changer de statistique (Vicaire) - Coût: 1 ressource aléatoire`)
       )
     )
   );
@@ -1159,11 +1176,17 @@ function QueteTab({ player, gameState, setGameState, updateCurrentPlayer, addPdv
       player.quests.length === 0 ? React.createElement("p", { className: "text-gray-500 text-center py-4" }, "Aucune quête") : React.createElement("div", { className: "space-y-2" },
         player.quests.map(quest => {
           const questInfo = parseQuest(quest.text);
+          const hasEnoughResources = questInfo.isExchange ? player[questInfo.resourceKey] >= questInfo.resourceAmount : true;
+          const currentAmount = questInfo.isExchange ? player[questInfo.resourceKey] : 0;
           return React.createElement("div", { key: quest.id, className: "rounded-lg p-3 bg-gray-50 border-2 border-gray-300" },
             React.createElement("p", { className: "text-sm text-gray-700 mb-2" }, quest.text),
             React.createElement("div", { className: "flex gap-2" },
               questInfo.isCombat && React.createElement("button", { onClick: () => startAttempt(quest.id, quest.text), disabled: player.usedAttackDice, className: "px-4 py-2 bg-orange-600 text-white rounded-lg font-semibold hover:bg-orange-700 disabled:opacity-50 text-sm" }, `⚔️ Tenter (${questInfo.difficulty} ${questInfo.statName})`),
-              questInfo.isExchange && React.createElement("button", { onClick: () => exchangeQuest(quest.id), className: "px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 text-sm" }, `🔄 Échanger (${questInfo.resourceAmount} ${questInfo.resourceKey})`)
+              questInfo.isExchange && React.createElement("button", { 
+                onClick: () => hasEnoughResources && exchangeQuest(quest.id), 
+                disabled: !hasEnoughResources,
+                className: `px-4 py-2 rounded-lg font-semibold text-sm ${hasEnoughResources ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-gray-300 text-gray-500 cursor-not-allowed'}` 
+              }, `🔄 Échanger (${currentAmount}/${questInfo.resourceAmount} ${questInfo.resourceKey})`)
             )
           );
         })
@@ -1801,11 +1824,43 @@ function SortsTab({ player, gameState, updateCurrentPlayer, updatePlayer }) {
       )
     ),
     
-    // Récapitulatif des capacités
+    // Récapitulatif des capacités avec statut
     React.createElement("div", { className: "bg-blue-50 border-2 border-blue-300 rounded-xl p-4" },
       React.createElement("h4", { className: "font-bold text-blue-800 mb-3" }, "📋 Capacités du personnage"),
       React.createElement("div", { className: "space-y-2" },
-        player.character.skills.map((skill, idx) => React.createElement("div", { key: idx, className: "text-sm text-gray-700 bg-white rounded p-2" }, `• ${skill}`))
+        player.character.skills.map((skill, idx) => {
+          // Déterminer le statut de chaque compétence
+          let status = null;
+          let statusColor = '';
+          let statusText = '';
+          
+          // Vicaire
+          if (player.characterKey === 'VICAIRE') {
+            if (idx === 0) { // Relance stat
+              status = true; // Toujours disponible si ressources
+              statusColor = 'bg-green-500';
+              statusText = 'Disponible';
+            } else if (idx === 1) { // Bénédiction
+              status = player.blessAvailable;
+              statusColor = status ? 'bg-green-500' : 'bg-orange-500';
+              statusText = status ? 'Disponible' : 'En recharge';
+            }
+          }
+          
+          // Hérétique
+          if (player.characterKey === 'HERETIQUE') {
+            if (idx === 1) { // Malédiction
+              status = player.curseAvailable;
+              statusColor = status ? 'bg-green-500' : 'bg-orange-500';
+              statusText = status ? 'Disponible' : 'En recharge';
+            }
+          }
+          
+          return React.createElement("div", { key: idx, className: "flex items-center justify-between text-sm text-gray-700 bg-white rounded p-2" },
+            React.createElement("span", null, `• ${skill}`),
+            status !== null && React.createElement("span", { className: `px-2 py-1 rounded text-xs text-white font-semibold ${statusColor}` }, statusText)
+          );
+        })
       )
     )
   );
@@ -1876,21 +1931,47 @@ function EtatsTab({ player, updateCurrentPlayer }) {
 }
 
 // ============= PERSONNAGE TAB =============
-function PersonnageTab({ player, updateCurrentPlayer, gameState, setGameState }) {
+function PersonnageTab({ player, updateCurrentPlayer, gameState, setGameState, addPdvWithHistory, playerIndex }) {
   const adjustPv = (d) => updateCurrentPlayer({ pvCurrent: Math.max(0, Math.min(player.character.pvMax, player.pvCurrent + d)) });
 
   const passStart = () => {
     const bonus = rulesEngine.getPassBonus(player);
+    
+    // Calculer les ressources des territoires
+    const territoryCount = countTerritoriesByBiome(player.territories);
+    const resourceGains = {
+      cuivre: territoryCount.FORET,
+      argent: territoryCount.DESERT,
+      obsidienne: territoryCount.MONTAGNE
+    };
+    
+    // Appliquer tous les gains
     updateCurrentPlayer({ 
-      ...bonus, 
+      or: player.or + (bonus.or || 0),
+      cuivre: player.cuivre + resourceGains.cuivre,
+      argent: player.argent + resourceGains.argent,
+      obsidienne: player.obsidienne + resourceGains.obsidienne,
       tourPlateau: player.tourPlateau + 1, 
       rerollAvailable: true,
       blessAvailable: player.characterKey === 'VICAIRE',
       curseAvailable: player.characterKey === 'HERETIQUE'
     });
-    const msg = bonus.or ? `+${bonus.or} Or` : '';
-    alert(`🏁 Passage par le Départ !\n${msg}\nCompétences rechargées !`);
+    
+    // +1 PDV
+    addPdvWithHistory(playerIndex, 1, 'START', { tour: player.tourPlateau + 1 });
+    
+    // Construire le message
+    let msg = `🏁 Passage par le Départ !\n\n🏆 +1 PDV`;
+    if (bonus.or) msg += `\n💰 +${bonus.or} Or (Marchand)`;
+    if (resourceGains.cuivre > 0) msg += `\n🌳 +${resourceGains.cuivre} Cuivre`;
+    if (resourceGains.argent > 0) msg += `\n🏜️ +${resourceGains.argent} Argent`;
+    if (resourceGains.obsidienne > 0) msg += `\n⛰️ +${resourceGains.obsidienne} Obsidienne`;
+    msg += `\n\n✨ Compétences rechargées !`;
+    
+    alert(msg);
   };
+
+  const territoryCount = countTerritoriesByBiome(player.territories);
 
   const ResBox = ({ icon, label, val, k }) => React.createElement("div", { className: "bg-white bg-opacity-20 rounded-lg p-3" },
     React.createElement("div", { className: "text-sm font-semibold mb-2 text-center" }, `${icon} ${label}`),
@@ -1960,12 +2041,17 @@ function PdvHistoryTab({ player, gameState }) {
   }, [history]);
 
   const ranking = useMemo(() => [...gameState.players].sort((a, b) => b.pdv - a.pdv), [gameState.players]);
+  const totalPdv = gameState.players.reduce((sum, p) => sum + p.pdv, 0);
+  const nextEventThreshold = Math.ceil((totalPdv + 1) / 10) * 10;
 
   return React.createElement("div", { className: "space-y-6" },
     React.createElement("div", { className: "text-center" },
       React.createElement("h3", { className: "text-2xl font-bold text-gray-800" }, "🏆 Points de Victoire"),
       React.createElement("div", { className: "text-5xl font-bold text-amber-500" }, player.pdv),
-      React.createElement("div", { className: "text-sm text-gray-500 mt-2" }, `Prochain événement: ${Math.ceil((player.pdv + 1) / 10) * 10} PDV`)
+      React.createElement("div", { className: "bg-purple-100 rounded-lg p-3 mt-3" },
+        React.createElement("div", { className: "text-sm text-purple-700" }, `Total tous joueurs: ${totalPdv} PDV`),
+        React.createElement("div", { className: "text-xs text-purple-600 mt-1" }, `Prochain événement à ${nextEventThreshold} PDV total`)
+      )
     ),
     React.createElement("div", { className: "bg-gray-50 rounded-xl p-4" },
       React.createElement("h4", { className: "font-bold text-gray-800 mb-3" }, "📊 Répartition"),
