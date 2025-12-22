@@ -1,5 +1,4 @@
 <!DOCTYPE html>
-
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
@@ -129,6 +128,65 @@ const RESOURCE_MAPPING = {
 };
 
 const BASE_GOLD = 10; // Or de base pour tous les joueurs
+
+// Couleurs des pions joueurs
+const PLAYER_COLORS = [
+  { bg: 'bg-red-500', border: 'border-red-700', text: 'text-red-500', hex: '#ef4444' },
+  { bg: 'bg-blue-500', border: 'border-blue-700', text: 'text-blue-500', hex: '#3b82f6' },
+  { bg: 'bg-green-500', border: 'border-green-700', text: 'text-green-500', hex: '#22c55e' },
+  { bg: 'bg-yellow-500', border: 'border-yellow-700', text: 'text-yellow-500', hex: '#eab308' },
+  { bg: 'bg-purple-500', border: 'border-purple-700', text: 'text-purple-500', hex: '#a855f7' },
+  { bg: 'bg-pink-500', border: 'border-pink-700', text: 'text-pink-500', hex: '#ec4899' }
+];
+
+// Positions des 40 cases (0-39) sur le circuit INTÉRIEUR du plateau (autour du lac)
+// Coordonnées en % de l'image - Circuit sens horaire depuis case 0 (haut-gauche)
+const BOARD_POSITIONS = {
+  // Côté HAUT (gauche vers droite): cases 0-9
+  0: { x: 12, y: 12 },   // Coin haut-gauche (départ)
+  1: { x: 20, y: 12 },
+  2: { x: 28, y: 12 },
+  3: { x: 36, y: 12 },
+  4: { x: 44, y: 12 },
+  5: { x: 52, y: 12 },
+  6: { x: 60, y: 12 },
+  7: { x: 68, y: 12 },
+  8: { x: 76, y: 12 },
+  9: { x: 84, y: 12 },
+  // Côté DROIT (haut vers bas): cases 10-19
+  10: { x: 88, y: 12 },  // Coin haut-droit
+  11: { x: 88, y: 19 },
+  12: { x: 88, y: 26 },
+  13: { x: 88, y: 33 },
+  14: { x: 88, y: 40 },
+  15: { x: 88, y: 47 },
+  16: { x: 88, y: 54 },
+  17: { x: 88, y: 61 },
+  18: { x: 88, y: 68 },
+  19: { x: 88, y: 75 },
+  // Côté BAS (droite vers gauche): cases 20-29
+  20: { x: 88, y: 82 },  // Coin bas-droit
+  21: { x: 80, y: 82 },
+  22: { x: 72, y: 82 },
+  23: { x: 64, y: 82 },
+  24: { x: 56, y: 82 },
+  25: { x: 48, y: 82 },
+  26: { x: 40, y: 82 },
+  27: { x: 32, y: 82 },
+  28: { x: 24, y: 82 },
+  29: { x: 16, y: 82 },
+  // Côté GAUCHE (bas vers haut): cases 30-39
+  30: { x: 12, y: 82 },  // Coin bas-gauche
+  31: { x: 12, y: 75 },
+  32: { x: 12, y: 68 },
+  33: { x: 12, y: 61 },
+  34: { x: 12, y: 54 },
+  35: { x: 12, y: 47 },
+  36: { x: 12, y: 40 },
+  37: { x: 12, y: 33 },
+  38: { x: 12, y: 26 },
+  39: { x: 12, y: 19 }   // Juste avant retour case 0
+};
 
 // ============= RULES ENGINE =============
 const rulesEngine = {
@@ -265,18 +323,121 @@ const CHARACTERS = {
   }
 };
 
-// ============= CARD DECKS =============
-const ANOMALIES = ["Soignez 1 [Point de vie].","Soignez 2 [Point de vie].","Soignez 3 [Point de vie].","Soignez 4 [Point de vie].","Soignez 5 [Point de vie].","Perdez 1 [Point de vie].","Perdez 2 [Point de vie].","Perdez 3 [Point de vie].","Perdez 4 [Point de vie].","Perdez 5 [Point de vie].","Obtenez [Bénédiction] de [Endurance].","Obtenez [Bénédiction] de [Force].","Obtenez [Bénédiction] de [Agilité].","Obtenez [Bénédiction] de [Perception].","Obtenez [Bénédiction] de [Sagesse].","Obtenez [Bénédiction] de [Intelligence].","Obtenez [Malédiction] de [Endurance].","Obtenez [Malédiction] de [Force].","Obtenez [Malédiction] de [Agilité].","Obtenez [Malédiction] de [Perception].","Obtenez [Malédiction] de [Sagesse].","Obtenez [Malédiction] de [Intelligence].","Gagnez 8 [Pièce d'Or].","Gagnez 4 [Pièce d'Or].","Gagnez 6 [Ecorce Cuivrée].","Gagnez 3 [Ecorce Cuivrée].","Gagnez 4 [Sable Argenté].","Gagnez 2 [Sable Argenté].","Gagnez 2 [Roche Obsidienne].","Gagnez 1 [Roche Obsidienne].","Perdez 4 [Pièce d'Or].","Perdez 3 [Ecorce Cuivrée].","Perdez 2 [Sable Argenté].","Perdez 1 [Roche Obsidienne]."];
+// ============= CARD DECKS (Contenu exact du PDF) =============
+const ANOMALIES = [
+  // Soins (pages 38-42)
+  "Soignez 2 [Point de vie].",
+  "Soignez 4 [Point de vie].",
+  "Soignez 6 [Point de vie].",
+  "Soignez 8 [Point de vie].",
+  "Soignez 10 [Point de vie].",
+  // Dégâts (pages 43-47)
+  "Perdez 2 [Point de vie].",
+  "Perdez 4 [Point de vie].",
+  "Perdez 6 [Point de vie].",
+  "Perdez 8 [Point de vie].",
+  "Perdez 10 [Point de vie].",
+  // Spéciaux (pages 48-49)
+  "Recharger votre objet consomable.",
+  "Recharger votre pouvoir.",
+  // Bénédictions (pages 50-53)
+  "Obtenez [Bénédiction].",
+  "Obtenez [Bénédiction].",
+  "Obtenez [Bénédiction].",
+  "Obtenez [Bénédiction].",
+  // Malédictions (pages 54-57)
+  "Obtenez [Malédiction].",
+  "Obtenez [Malédiction].",
+  "Obtenez [Malédiction].",
+  "Obtenez [Malédiction].",
+  // Gains ressources (pages 58-65)
+  "Gagnez 8 [Pièce d'Or].",
+  "Gagnez 4 [Pièce d'Or].",
+  "Gagnez 6 [Ecorce Cuivrée].",
+  "Gagnez 3 [Ecorce Cuivrée].",
+  "Gagnez 4 [Sable Argenté].",
+  "Gagnez 2 [Sable Argenté].",
+  "Gagnez 2 [Roche Obsidienne].",
+  "Gagnez 1 [Roche Obsidienne].",
+  // Pertes ressources (pages 66-73)
+  "Perdez 8 [Pièce d'Or].",
+  "Perdez 4 [Pièce d'Or].",
+  "Perdez 6 [Ecorce Cuivrée].",
+  "Perdez 3 [Ecorce Cuivrée].",
+  "Perdez 4 [Sable Argenté].",
+  "Perdez 2 [Sable Argenté].",
+  "Perdez 2 [Roche Obsidienne].",
+  "Perdez 1 [Roche Obsidienne]."
+];
 
-const QUETES = ["Dans le territoire [Forêt aux arbres Cuivrés], éliminer la créature de difficulté 6 en [Endurance] pour gagner 3 [Point de victoire].","Dans le territoire [Forêt aux arbres Cuivrés], éliminer la créature de difficulté 6 en [Force] pour gagner 3 [Point de victoire].","Dans le territoire [Forêt aux arbres Cuivrés], éliminer la créature de difficulté 8 en [Agilité] pour gagner 4 [Point de victoire].","Dans le territoire [Forêt aux arbres Cuivrés], éliminer la créature de difficulté 10 en [Sagesse] pour gagner 5 [Point de victoire].","Dans le territoire [Désert aux sables Argentés], éliminer la créature de difficulté 6 en [Perception] pour gagner 3 [Point de victoire].","Dans le territoire [Désert aux sables Argentés], éliminer la créature de difficulté 8 en [Intelligence] pour gagner 4 [Point de victoire].","Dans le territoire [Désert aux sables Argentés], éliminer la créature de difficulté 10 en [Force] pour gagner 5 [Point de victoire].","Dans le territoire [Montagne aux roches Obsdiennes], éliminer la créature de difficulté 6 en [Endurance] pour gagner 3 [Point de victoire].","Dans le territoire [Montagne aux roches Obsdiennes], éliminer la créature de difficulté 8 en [Perception] pour gagner 4 [Point de victoire].","Dans le territoire [Montagne aux roches Obsdiennes], éliminer la créature de difficulté 10 en [Agilité] pour gagner 5 [Point de victoire].","Echanger 8 [Pièce d'Or] contre 2 [Point de victoire].","Echanger 4 [Pièce d'Or] contre 1 [Point de victoire].","Echanger 6 [Ecorce Cuivrée] contre 2 [Point de victoire].","Echanger 3 [Ecorce Cuivrée] contre 1 [Point de victoire].","Echanger 4 [Sable Argenté] contre 2 [Point de victoire].","Echanger 2 [Sable Argenté] contre 1 [Point de victoire].","Echanger 2 [Roche Obsidienne] contre 2 [Point de victoire].","Echanger 1 [Roche Obsidienne] contre 1 [Point de victoire]."];
+const QUETES = [
+  // Forêt aux arbres Cuivrés (pages 3-8)
+  "Dans le territoire [Forêt aux arbres Cuivrés], éliminer la créature de difficulté 6 pour gagner 3 [Point de victoire].",
+  "Dans le territoire [Forêt aux arbres Cuivrés], éliminer la créature de difficulté 6 pour gagner 3 [Point de victoire].",
+  "Dans le territoire [Forêt aux arbres Cuivrés], éliminer la créature de difficulté 6 pour gagner 3 [Point de victoire].",
+  "Dans le territoire [Forêt aux arbres Cuivrés], éliminer la créature de difficulté 8 pour gagner 4 [Point de victoire].",
+  "Dans le territoire [Forêt aux arbres Cuivrés], éliminer la créature de difficulté 8 pour gagner 4 [Point de victoire].",
+  "Dans le territoire [Forêt aux arbres Cuivrés], éliminer la créature de difficulté 10 pour gagner 5 [Point de victoire].",
+  // Désert aux sables Argentés (pages 9-14)
+  "Dans le territoire [Désert aux sables Argentés], éliminer la créature de difficulté 6 pour gagner 3 [Point de victoire].",
+  "Dans le territoire [Désert aux sables Argentés], éliminer la créature de difficulté 6 pour gagner 3 [Point de victoire].",
+  "Dans le territoire [Désert aux sables Argentés], éliminer la créature de difficulté 6 pour gagner 3 [Point de victoire].",
+  "Dans le territoire [Désert aux sables Argentés], éliminer la créature de difficulté 8 pour gagner 4 [Point de victoire].",
+  "Dans le territoire [Désert aux sables Argentés], éliminer la créature de difficulté 8 pour gagner 4 [Point de victoire].",
+  "Dans le territoire [Désert aux sables Argentés], éliminer la créature de difficulté 10 pour gagner 5 [Point de victoire].",
+  // Montagne aux roches Obsidiennes (pages 15-20)
+  "Dans le territoire [Montagne aux roches Obsidiennes], éliminer la créature de difficulté 6 pour gagner 3 [Point de victoire].",
+  "Dans le territoire [Montagne aux roches Obsidiennes], éliminer la créature de difficulté 6 pour gagner 3 [Point de victoire].",
+  "Dans le territoire [Montagne aux roches Obsidiennes], éliminer la créature de difficulté 6 pour gagner 3 [Point de victoire].",
+  "Dans le territoire [Montagne aux roches Obsidiennes], éliminer la créature de difficulté 8 pour gagner 4 [Point de victoire].",
+  "Dans le territoire [Montagne aux roches Obsidiennes], éliminer la créature de difficulté 8 pour gagner 4 [Point de victoire].",
+  "Dans le territoire [Montagne aux roches Obsidiennes], éliminer la créature de difficulté 10 pour gagner 5 [Point de victoire].",
+  // Échanges Or (pages 21-22, 28-29)
+  "Echanger 8 [Pièce d'Or] contre 2 [Point de victoire].",
+  "Echanger 8 [Pièce d'Or] contre 2 [Point de victoire].",
+  "Echanger 4 [Pièce d'Or] contre 1 [Point de victoire].",
+  "Echanger 4 [Pièce d'Or] contre 1 [Point de victoire].",
+  // Échanges Cuivre (pages 23-24, 30-31)
+  "Echanger 6 [Ecorce Cuivrée] contre 2 [Point de victoire].",
+  "Echanger 6 [Ecorce Cuivrée] contre 2 [Point de victoire].",
+  "Echanger 3 [Ecorce Cuivrée] contre 1 [Point de victoire].",
+  "Echanger 3 [Ecorce Cuivrée] contre 1 [Point de victoire].",
+  // Échanges Argent (pages 25-26, 32-33)
+  "Echanger 4 [Sable Argenté] contre 2 [Point de victoire].",
+  "Echanger 4 [Sable Argenté] contre 2 [Point de victoire].",
+  "Echanger 2 [Sable Argenté] contre 1 [Point de victoire].",
+  "Echanger 2 [Sable Argenté] contre 1 [Point de victoire].",
+  // Échanges Obsidienne (pages 27, 34-35, 74)
+  "Echanger 2 [Roche Obsidienne] contre 2 [Point de victoire].",
+  "Echanger 2 [Roche Obsidienne] contre 2 [Point de victoire].",
+  "Echanger 1 [Roche Obsidienne] contre 1 [Point de victoire].",
+  "Echanger 1 [Roche Obsidienne] contre 1 [Point de victoire].",
+  // Spéciales (pages 36-37)
+  "Allez en [Prison].",
+  "Obtenez l'objet [Clefs de la prison]."
+];
 
 // ============= PARSING =============
 function parseAnomaly(text) {
   let m;
   if (m = text.match(/Soignez (\d+)/)) return { type: 'heal', amount: +m[1] };
   if (m = text.match(/Perdez (\d+) \[Point de vie\]/)) return { type: 'damage', amount: +m[1] };
-  if (m = text.match(/Bénédiction.*\[(.+?)\]/)) return { type: 'bless', stat: STAT_MAPPING[m[1]], statName: m[1] };
-  if (m = text.match(/Malédiction.*\[(.+?)\]/)) return { type: 'curse', stat: STAT_MAPPING[m[1]], statName: m[1] };
+  // Bénédiction avec stat spécifique
+  if (m = text.match(/Bénédiction\] de \[(.+?)\]/)) return { type: 'bless', stat: STAT_MAPPING[m[1]], statName: m[1] };
+  // Bénédiction sans stat (aléatoire)
+  if (text.includes('[Bénédiction]') && !text.includes('de [')) {
+    const stats = Object.keys(STAT_NAMES);
+    const randomStat = stats[Math.floor(Math.random() * stats.length)];
+    return { type: 'bless', stat: randomStat, statName: STAT_NAMES[randomStat], isRandom: true };
+  }
+  // Malédiction avec stat spécifique
+  if (m = text.match(/Malédiction\] de \[(.+?)\]/)) return { type: 'curse', stat: STAT_MAPPING[m[1]], statName: m[1] };
+  // Malédiction sans stat (aléatoire)
+  if (text.includes('[Malédiction]') && !text.includes('de [')) {
+    const stats = Object.keys(STAT_NAMES);
+    const randomStat = stats[Math.floor(Math.random() * stats.length)];
+    return { type: 'curse', stat: randomStat, statName: STAT_NAMES[randomStat], isRandom: true };
+  }
   if (m = text.match(/Gagnez (\d+) \[Pièce/)) return { type: 'gain', resource: 'or', amount: +m[1] };
   if (m = text.match(/Gagnez (\d+) \[Ecorce/)) return { type: 'gain', resource: 'cuivre', amount: +m[1] };
   if (m = text.match(/Gagnez (\d+) \[Sable/)) return { type: 'gain', resource: 'argent', amount: +m[1] };
@@ -285,6 +446,8 @@ function parseAnomaly(text) {
   if (m = text.match(/Perdez (\d+) \[Ecorce/)) return { type: 'lose', resource: 'cuivre', amount: +m[1] };
   if (m = text.match(/Perdez (\d+) \[Sable/)) return { type: 'lose', resource: 'argent', amount: +m[1] };
   if (m = text.match(/Perdez (\d+) \[Roche/)) return { type: 'lose', resource: 'obsidienne', amount: +m[1] };
+  if (text.includes('Recharger votre objet')) return { type: 'recharge_item' };
+  if (text.includes('Recharger votre pouvoir')) return { type: 'recharge_power' };
   return { type: 'other' };
 }
 
@@ -298,10 +461,24 @@ function parseQuest(text) {
     return { pdv, isExchange: true, isCombat: false, resourceKey: resInfo?.key, resourceAmount: +exchMatch[1] };
   }
   
-  const combatMatch = text.match(/difficulté (\d+) en \[(.+?)\]/);
-  if (combatMatch) {
-    return { pdv, isExchange: false, isCombat: true, difficulty: +combatMatch[1], stat: STAT_MAPPING[combatMatch[2]], statName: combatMatch[2] };
+  // Combat avec stat spécifique
+  const combatMatchWithStat = text.match(/difficulté (\d+) en \[(.+?)\]/);
+  if (combatMatchWithStat) {
+    return { pdv, isExchange: false, isCombat: true, difficulty: +combatMatchWithStat[1], stat: STAT_MAPPING[combatMatchWithStat[2]], statName: combatMatchWithStat[2] };
   }
+  
+  // Combat sans stat (stat aléatoire au moment du combat)
+  const combatMatch = text.match(/difficulté (\d+) pour gagner/);
+  if (combatMatch) {
+    // Stat aléatoire parmi les 6
+    const statKeys = Object.keys(STAT_NAMES);
+    const randomKey = statKeys[Math.floor(Math.random() * statKeys.length)];
+    return { pdv, isExchange: false, isCombat: true, difficulty: +combatMatch[1], stat: randomKey, statName: STAT_NAMES[randomKey], isRandomStat: true };
+  }
+  
+  // Quêtes spéciales
+  if (text.includes('[Prison]')) return { pdv: 0, isExchange: false, isCombat: false, isSpecial: true, specialType: 'prison' };
+  if (text.includes('[Clefs de la prison]')) return { pdv: 0, isExchange: false, isCombat: false, isSpecial: true, specialType: 'keys' };
   
   return { pdv, isExchange: false, isCombat: false };
 }
@@ -385,6 +562,7 @@ function TurnBasedGameApp() {
       quests: [],
       territories: [],
       defeatedBosses: [],
+      position: 0, // Position sur le plateau (0-39)
       skills: character.skills.map((s, idx) => ({ id: `skill_${idx}`, description: s, status: 'AVAILABLE' })),
       usedAttackDice: false,
       rerollAvailable: true,
@@ -866,6 +1044,103 @@ function EndGameScreen({ gameState, onClose, onReset }) {
   );
 }
 
+// ============= MAP TAB =============
+function MapTab({ gameState }) {
+  const mapUrl = 'map-VF.png'; // Image de la carte (placez map-VF.png dans le même dossier)
+  
+  return React.createElement("div", { className: "space-y-4" },
+    React.createElement("h3", { className: "text-2xl font-bold text-center text-gray-800" }, "🗺️ Carte du jeu"),
+    
+    // Légende des joueurs
+    React.createElement("div", { className: "bg-gray-50 rounded-xl p-3" },
+      React.createElement("h4", { className: "font-bold text-gray-700 mb-2 text-sm" }, "📍 Positions des joueurs"),
+      React.createElement("div", { className: "flex flex-wrap gap-2" },
+        gameState.players.map((p, idx) => {
+          const color = PLAYER_COLORS[idx % PLAYER_COLORS.length];
+          return React.createElement("div", { key: p.id, className: "flex items-center gap-2 bg-white rounded-lg px-3 py-1 border" },
+            React.createElement("div", { className: `w-4 h-4 rounded-full ${color.bg}` }),
+            React.createElement("span", { className: "text-sm font-medium" }, p.playerName),
+            React.createElement("span", { className: "text-xs text-gray-500" }, `Case ${p.position || 0}`)
+          );
+        })
+      )
+    ),
+    
+    // Carte avec pions
+    React.createElement("div", { className: "relative bg-gray-200 rounded-xl overflow-hidden", style: { aspectRatio: '1/1' } },
+      // Image de la carte
+      React.createElement("img", { 
+        src: mapUrl, 
+        alt: "Carte du jeu",
+        className: "w-full h-full object-contain",
+        onError: (e) => { e.target.style.display = 'none'; }
+      }),
+      
+      // Pions des joueurs
+      gameState.players.map((p, idx) => {
+        const color = PLAYER_COLORS[idx % PLAYER_COLORS.length];
+        const pos = BOARD_POSITIONS[p.position || 0] || { x: 8, y: 8 };
+        // Décalage pour éviter superposition
+        const offset = idx * 2;
+        
+        return React.createElement("div", { 
+          key: p.id,
+          className: `absolute transform -translate-x-1/2 -translate-y-1/2 transition-all duration-500`,
+          style: { 
+            left: `${pos.x + offset}%`, 
+            top: `${pos.y}%`,
+            zIndex: 10 + idx
+          }
+        },
+          React.createElement("div", { 
+            className: `w-6 h-6 ${color.bg} ${color.border} border-2 rounded-full flex items-center justify-center text-white text-xs font-bold shadow-lg`,
+            title: `${p.playerName} - Case ${p.position || 0}`
+          }, idx + 1)
+        );
+      }),
+      
+      // Si pas d'image, afficher grille simplifiée
+      React.createElement("div", { className: "absolute inset-0 flex items-center justify-center pointer-events-none" },
+        React.createElement("div", { className: "text-gray-400 text-center p-4 bg-white bg-opacity-80 rounded-lg hidden" },
+          React.createElement("p", { className: "font-bold" }, "Carte non chargée"),
+          React.createElement("p", { className: "text-sm" }, "Placez map-VF.png dans le même dossier")
+        )
+      )
+    ),
+    
+    // Tableau des positions
+    React.createElement("div", { className: "bg-white rounded-xl border-2 border-gray-300 p-4" },
+      React.createElement("h4", { className: "font-bold text-gray-800 mb-3" }, "📊 Résumé des positions"),
+      React.createElement("div", { className: "space-y-2" },
+        gameState.players.map((p, idx) => {
+          const color = PLAYER_COLORS[idx % PLAYER_COLORS.length];
+          const pos = p.position || 0;
+          // Déterminer la zone (40 cases sens horaire: 0-9 haut, 10-19 droite, 20-29 bas, 30-39 gauche)
+          let zone = "Départ (Case 0)";
+          if (pos >= 0 && pos <= 9) zone = "Côté Nord (Montagne)";
+          if (pos >= 10 && pos <= 19) zone = "Côté Est (Village)";
+          if (pos >= 20 && pos <= 29) zone = "Côté Sud (Désert)";
+          if (pos >= 30 && pos <= 39) zone = "Côté Ouest (Forêt)";
+          
+          return React.createElement("div", { 
+            key: p.id, 
+            className: "flex items-center justify-between p-2 bg-gray-50 rounded-lg"
+          },
+            React.createElement("div", { className: "flex items-center gap-2" },
+              React.createElement("div", { className: `w-5 h-5 ${color.bg} rounded-full flex items-center justify-center text-white text-xs font-bold` }, idx + 1),
+              React.createElement("span", { className: "font-medium" }, p.playerName)
+            ),
+            React.createElement("div", { className: "text-right" },
+              React.createElement("div", { className: "font-bold text-blue-600" }, `Case ${pos}`),
+              React.createElement("div", { className: "text-xs text-gray-500" }, zone)
+            )
+          );
+        })
+      )
+    )
+  );
+}
+
 // ============= ONGLET ÉVÉNEMENT =============
 function EventTab({ gameState, setGameState }) {
   const [newEventText, setNewEventText] = useState('');
@@ -1066,13 +1341,14 @@ function TurnGameScreen({ gameState, setGameState, updateCurrentPlayer, updatePl
     React.createElement("div", { className: "bg-white shadow-md" },
       React.createElement("div", { className: "max-w-4xl mx-auto overflow-x-auto" },
         React.createElement("div", { className: "flex" },
-          ['anomalie', 'quete', 'de', 'attaque', 'objectif', 'echange', 'pari', 'event', 'personnage', 'pdv'].map(tab => React.createElement("button", {
+          ['anomalie', 'quete', 'de', 'map', 'attaque', 'objectif', 'echange', 'pari', 'event', 'personnage', 'pdv'].map(tab => React.createElement("button", {
             key: tab, onClick: () => setActiveTab(tab),
             className: `flex-shrink-0 px-3 py-3 font-semibold transition-colors border-b-4 text-xs ${activeTab === tab ? 'bg-blue-600 text-white border-blue-800' : 'bg-gray-100 text-gray-600 border-transparent hover:bg-gray-200'}`
           },
             tab === 'anomalie' && 'Anomalie',
             tab === 'quete' && 'Quête',
             tab === 'de' && 'Dé',
+            tab === 'map' && 'Map',
             tab === 'attaque' && 'Attaque',
             tab === 'objectif' && 'Objectif',
             tab === 'echange' && 'Échange',
@@ -1090,6 +1366,7 @@ function TurnGameScreen({ gameState, setGameState, updateCurrentPlayer, updatePl
           activeTab === 'anomalie' && React.createElement(AnomalieTab, { player: currentPlayer, gameState, setGameState, updateCurrentPlayer }),
           activeTab === 'quete' && React.createElement(QueteTab, { player: currentPlayer, gameState, setGameState, updateCurrentPlayer, addPdvWithHistory, playerIndex: gameState.currentTurn }),
           activeTab === 'de' && React.createElement(DeTab, { player: currentPlayer, gameState, updateCurrentPlayer }),
+          activeTab === 'map' && React.createElement(MapTab, { gameState }),
           activeTab === 'attaque' && React.createElement(AttaqueTab, { player: currentPlayer, gameState, setGameState, updateCurrentPlayer, updatePlayer, addPdvWithHistory, playerIndex: gameState.currentTurn }),
           activeTab === 'objectif' && React.createElement(ObjectifTab, { player: currentPlayer, gameState, setGameState, addPdvWithHistory, playerIndex: gameState.currentTurn }),
           activeTab === 'echange' && React.createElement(EchangeTab, { player: currentPlayer, gameState, updateCurrentPlayer, updatePlayer }),
@@ -1125,7 +1402,7 @@ function AttaqueTab({ player, gameState, setGameState, updateCurrentPlayer, upda
   if (mode === 'biome') {
     return React.createElement("div", { className: "space-y-4" },
       React.createElement("button", { onClick: () => setMode('menu'), className: "text-blue-600 hover:underline mb-4" }, "← Retour"),
-      React.createElement(BiomeTab, { player, gameState, updateCurrentPlayer, addPdvWithHistory, playerIndex })
+      React.createElement(BiomeTab, { player, gameState, setGameState, updateCurrentPlayer, updatePlayer, addPdvWithHistory, playerIndex })
     );
   }
   
@@ -1176,23 +1453,21 @@ function ObjectifTab({ player, gameState, setGameState, addPdvWithHistory, playe
     if (gameState.completedObjectives.includes(objective.id)) return;
     if (player[objective.resource] < objective.amount) return;
     
-    // Déduire les ressources
-    updateCurrentPlayer({ [objective.resource]: player[objective.resource] - objective.amount });
+    // Mettre à jour le joueur ET les objectifs en une seule opération
+    const newPlayers = [...gameState.players];
+    newPlayers[playerIndex] = { 
+      ...newPlayers[playerIndex], 
+      [objective.resource]: player[objective.resource] - objective.amount 
+    };
     
-    // Ajouter l'objectif aux complétés
     setGameState({ 
       ...gameState, 
+      players: newPlayers,
       completedObjectives: [...gameState.completedObjectives, objective.id] 
     });
     
     // Ajouter les PDV
     addPdvWithHistory(playerIndex, objective.pdv, 'BONUS', { reason: `Objectif ${objective.label}` });
-  };
-  
-  const updateCurrentPlayer = (updates) => {
-    const newPlayers = [...gameState.players];
-    newPlayers[playerIndex] = { ...newPlayers[playerIndex], ...updates };
-    setGameState({ ...gameState, players: newPlayers });
   };
   
   return React.createElement("div", { className: "space-y-6" },
@@ -1638,17 +1913,51 @@ function AnomalieTab({ player, gameState, setGameState, updateCurrentPlayer }) {
 
   const resetDeck = () => { if (confirm("Réinitialiser le deck d'anomalies ?")) { setGameState({ ...gameState, drawnAnomalies: [] }); setCurrentCard(null); } };
 
+  // Déterminer l'emoji de la carte basé sur le contenu
+  const getCardEmoji = (card) => {
+    if (!card) return "❓";
+    if (card.includes("Soignez")) return "💚";
+    if (card.includes("Perdez") && card.includes("Point de vie")) return "💔";
+    if (card.includes("Bénédiction")) return "✨";
+    if (card.includes("Malédiction")) return "💀";
+    if (card.includes("Gagnez")) return "📦";
+    if (card.includes("Perdez")) return "📉";
+    return "🔮";
+  };
+
   return React.createElement("div", { className: "space-y-6" },
     React.createElement("div", { className: "text-center" },
-      React.createElement("h3", { className: "text-2xl font-bold text-gray-800 mb-2" }, "Anomalies"),
+      React.createElement("h3", { className: "text-2xl font-bold text-gray-800 mb-2" }, "🔮 Anomalies"),
       React.createElement("p", { className: "text-gray-600" }, "Cartes restantes: ", React.createElement("strong", null, `${ANOMALIES.length - gameState.drawnAnomalies.length}`), " / ", ANOMALIES.length)
     ),
-    React.createElement("div", { className: `min-h-[200px] bg-gradient-to-r from-purple-600 to-purple-800 rounded-xl p-8 flex items-center justify-center transition-all ${isAnimating ? 'scale-95 opacity-50' : 'scale-100'}` },
-      currentCard ? React.createElement("p", { className: "text-xl text-center text-white font-medium" }, currentCard) : React.createElement("p", { className: "text-gray-300 text-center italic" }, 'Cliquez sur "Tirer une anomalie"')
+    
+    // Carte visuelle style PDF
+    React.createElement("div", { className: `transition-all duration-300 ${isAnimating ? 'scale-95 opacity-50 rotate-6' : 'scale-100'}` },
+      React.createElement("div", { 
+        className: "relative mx-auto w-64 h-80 bg-gradient-to-br from-purple-100 to-purple-200 rounded-2xl shadow-2xl border-4 border-purple-400 overflow-hidden"
+      },
+        // Header carte
+        React.createElement("div", { className: "bg-gradient-to-r from-purple-600 to-purple-800 text-white text-center py-3 font-bold text-lg" }, "Anomalies"),
+        
+        // Corps carte
+        React.createElement("div", { className: "p-4 flex flex-col items-center justify-center h-56" },
+          currentCard ? React.createElement(React.Fragment, null,
+            React.createElement("div", { className: "text-5xl mb-4" }, getCardEmoji(currentCard)),
+            React.createElement("p", { className: "text-center text-gray-800 font-medium text-sm leading-relaxed" }, currentCard)
+          ) : React.createElement(React.Fragment, null,
+            React.createElement("div", { className: "text-6xl mb-4 opacity-30" }, "🎴"),
+            React.createElement("p", { className: "text-gray-400 text-center italic" }, "Tirez une carte")
+          )
+        ),
+        
+        // Motif décoratif
+        React.createElement("div", { className: "absolute bottom-2 left-2 right-2 h-1 bg-purple-400 rounded opacity-50" })
+      )
     ),
+    
     React.createElement("div", { className: "grid grid-cols-2 gap-4" },
-      React.createElement("button", { onClick: drawCard, disabled: isAnimating, className: "py-4 bg-purple-600 text-white rounded-xl font-semibold hover:bg-purple-700 transition-colors" }, "Tirer une anomalie"),
-      React.createElement("button", { onClick: resetDeck, className: "py-4 bg-gray-600 text-white rounded-xl font-semibold hover:bg-gray-700 transition-colors" }, "Réinitialiser")
+      React.createElement("button", { onClick: drawCard, disabled: isAnimating, className: "py-4 bg-purple-600 text-white rounded-xl font-semibold hover:bg-purple-700 transition-colors disabled:opacity-50" }, "🎴 Tirer une anomalie"),
+      React.createElement("button", { onClick: resetDeck, className: "py-4 bg-gray-600 text-white rounded-xl font-semibold hover:bg-gray-700 transition-colors" }, "🔄 Réinitialiser")
     )
   );
 }
@@ -1668,7 +1977,12 @@ function DeTab({ player, gameState, updateCurrentPlayer }) {
     setMoveResult(null);
     setTimeout(() => {
       const result = Math.floor(Math.random() * 10) + 1;
-      setMoveResult(result);
+      // Calculer nouvelle position (circuit de 40 cases: 0-39)
+      const currentPos = player.position || 0;
+      const newPos = (currentPos + result) % 40;
+      
+      setMoveResult({ dice: result, oldPos: currentPos, newPos });
+      updateCurrentPlayer({ position: newPos });
       setIsAnimating(false);
     }, 800);
   };
@@ -1760,11 +2074,13 @@ function DeTab({ player, gameState, updateCurrentPlayer }) {
       React.createElement("h4", { className: "text-lg font-bold text-gray-800 mb-4 text-center" }, "🎲 Dé de Déplacement"),
       React.createElement("div", { className: `min-h-[150px] bg-gradient-to-r from-blue-600 to-blue-800 rounded-xl p-6 flex flex-col items-center justify-center mb-4 ${isAnimating ? 'animate-pulse' : ''}` },
         moveResult !== null ? React.createElement(React.Fragment, null,
-          React.createElement("div", { className: "text-7xl font-bold text-white mb-2" }, moveResult),
-          moveResult === 0 && React.createElement("div", { className: "text-xl font-bold text-yellow-300" }, "✨ Succès Critique ! ✨")
+          React.createElement("div", { className: "text-7xl font-bold text-white mb-2" }, moveResult.dice),
+          moveResult.dice === 10 && React.createElement("div", { className: "text-xl font-bold text-yellow-300" }, "✨ Succès Critique ! ✨"),
+          React.createElement("div", { className: "text-lg text-blue-200 mt-2" }, `Case ${moveResult.oldPos} → Case ${moveResult.newPos}`)
         ) : React.createElement("p", { className: "text-gray-300 text-center italic" }, "Lancer le dé de déplacement")
       ),
-      React.createElement("button", { onClick: rollMoveDice, disabled: isAnimating, className: "w-full py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50" }, "🎲 Lancer Déplacement (0-9)")
+      React.createElement("div", { className: "text-center text-gray-600 mb-2" }, `Position actuelle: Case ${player.position || 0}`),
+      React.createElement("button", { onClick: rollMoveDice, disabled: isAnimating, className: "w-full py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50" }, "🎲 Lancer Déplacement (1-10)")
     ),
     
     // Dé d'attaque
@@ -1944,12 +2260,32 @@ function QueteTab({ player, gameState, setGameState, updateCurrentPlayer, addPdv
 
   return React.createElement("div", { className: "space-y-6" },
     React.createElement("div", { className: "text-center" },
-      React.createElement("h3", { className: "text-2xl font-bold text-gray-800 mb-2" }, "Quêtes"),
+      React.createElement("h3", { className: "text-2xl font-bold text-gray-800 mb-2" }, "📜 Quêtes"),
       React.createElement("p", { className: "text-gray-600" }, `Quêtes actives: ${player.quests.length}/2`)
     ),
-    React.createElement("div", { className: "min-h-[150px] bg-gradient-to-r from-green-600 to-green-800 rounded-xl p-6 flex items-center justify-center" },
-      currentCard ? React.createElement("p", { className: "text-lg text-center text-white font-medium" }, currentCard) : React.createElement("p", { className: "text-gray-300 text-center italic" }, 'Cliquez sur "Tirer une quête"')
+    
+    // Carte visuelle style PDF
+    React.createElement("div", { 
+      className: "relative mx-auto w-64 h-80 bg-gradient-to-br from-amber-100 to-amber-200 rounded-2xl shadow-2xl border-4 border-amber-500 overflow-hidden"
+    },
+      // Header carte
+      React.createElement("div", { className: "bg-gradient-to-r from-amber-600 to-amber-800 text-white text-center py-3 font-bold text-lg" }, "Quêtes"),
+      
+      // Corps carte
+      React.createElement("div", { className: "p-4 flex flex-col items-center justify-center h-56" },
+        currentCard ? React.createElement(React.Fragment, null,
+          React.createElement("div", { className: "text-4xl mb-3" }, currentCard.includes("éliminer") ? "⚔️" : "🔄"),
+          React.createElement("p", { className: "text-center text-gray-800 font-medium text-xs leading-relaxed" }, currentCard)
+        ) : React.createElement(React.Fragment, null,
+          React.createElement("div", { className: "text-6xl mb-4 opacity-30" }, "📜"),
+          React.createElement("p", { className: "text-gray-400 text-center italic" }, "Tirez une carte")
+        )
+      ),
+      
+      // Motif décoratif
+      React.createElement("div", { className: "absolute bottom-2 left-2 right-2 h-1 bg-amber-500 rounded opacity-50" })
     ),
+    
     attemptResult && React.createElement("div", { className: `p-6 rounded-xl text-white ${attemptResult.success ? 'bg-green-600' : 'bg-red-600'}` },
       React.createElement("div", { className: "text-center mb-4" },
         attemptResult.isCritical && React.createElement("div", { className: "text-xl font-bold text-yellow-300 mb-2" }, "✨ CRITIQUE ! ✨"),
@@ -1975,17 +2311,17 @@ function QueteTab({ player, gameState, setGameState, updateCurrentPlayer, addPdv
       React.createElement("button", { onClick: () => handleQuestChoice('refuse'), className: "w-full py-2 bg-gray-600 text-white rounded-lg font-semibold hover:bg-gray-700" }, "Refuser la nouvelle quête")
     ),
     React.createElement("div", { className: "grid grid-cols-2 gap-4" },
-      React.createElement("button", { onClick: drawCard, disabled: showQuestChoice, className: "py-4 bg-green-600 text-white rounded-xl font-semibold hover:bg-green-700 transition-colors disabled:opacity-50" }, "📜 Tirer une quête"),
-      React.createElement("button", { onClick: () => { setGameState({ ...gameState, drawnQuetes: [] }); setCurrentCard(null); }, className: "py-4 bg-gray-600 text-white rounded-xl font-semibold hover:bg-gray-700 transition-colors" }, "Réinitialiser")
+      React.createElement("button", { onClick: drawCard, disabled: showQuestChoice, className: "py-4 bg-amber-600 text-white rounded-xl font-semibold hover:bg-amber-700 transition-colors disabled:opacity-50" }, "📜 Tirer une quête"),
+      React.createElement("button", { onClick: () => { setGameState({ ...gameState, drawnQuetes: [] }); setCurrentCard(null); }, className: "py-4 bg-gray-600 text-white rounded-xl font-semibold hover:bg-gray-700 transition-colors" }, "🔄 Réinitialiser")
     ),
     React.createElement("div", null,
-      React.createElement("h4", { className: "text-lg font-bold text-gray-800 mb-3" }, `Mes quêtes (${player.quests.length}/2)`),
+      React.createElement("h4", { className: "text-lg font-bold text-gray-800 mb-3" }, `📋 Mes quêtes (${player.quests.length}/2)`),
       player.quests.length === 0 ? React.createElement("p", { className: "text-gray-500 text-center py-4" }, "Aucune quête") : React.createElement("div", { className: "space-y-2" },
         player.quests.map(quest => {
           const questInfo = parseQuest(quest.text);
           const hasEnoughResources = questInfo.isExchange ? player[questInfo.resourceKey] >= questInfo.resourceAmount : true;
           const currentAmount = questInfo.isExchange ? player[questInfo.resourceKey] : 0;
-          return React.createElement("div", { key: quest.id, className: "rounded-lg p-3 bg-gray-50 border-2 border-gray-300" },
+          return React.createElement("div", { key: quest.id, className: "rounded-lg p-3 bg-amber-50 border-2 border-amber-300" },
             React.createElement("p", { className: "text-sm text-gray-700 mb-2" }, quest.text),
             React.createElement("div", { className: "flex gap-2" },
               questInfo.isCombat && React.createElement("button", { onClick: () => startAttempt(quest.id, quest.text), disabled: player.usedAttackDice, className: "px-4 py-2 bg-orange-600 text-white rounded-lg font-semibold hover:bg-orange-700 disabled:opacity-50 text-sm" }, `⚔️ Tenter (${questInfo.difficulty} ${questInfo.statName})`),
@@ -2003,10 +2339,11 @@ function QueteTab({ player, gameState, setGameState, updateCurrentPlayer, addPdv
 }
 
 // ============= BIOME TAB =============
-function BiomeTab({ player, gameState, updateCurrentPlayer, addPdvWithHistory, playerIndex }) {
+function BiomeTab({ player, gameState, setGameState, updateCurrentPlayer, updatePlayer, addPdvWithHistory, playerIndex }) {
   const [selectedBiome, setSelectedBiome] = useState(null);
   const [difficulty, setDifficulty] = useState(6);
   const [isNeutral, setIsNeutral] = useState(true);
+  const [targetOwner, setTargetOwner] = useState(null); // Index du propriétaire adverse
   const [isRanged, setIsRanged] = useState(false);
   const [result, setResult] = useState(null);
   const [showSacrifice, setShowSacrifice] = useState(false);
@@ -2020,12 +2357,33 @@ function BiomeTab({ player, gameState, updateCurrentPlayer, addPdvWithHistory, p
   const canReroll = rulesEngine.canReroll(player);
   const hasResources = player.or > 0 || player.cuivre > 0 || player.argent > 0 || player.obsidienne > 0;
 
+  // Trouver les joueurs ayant des territoires du biome sélectionné
+  const getOwnersOfBiome = (biome) => {
+    if (!biome) return [];
+    return gameState.players
+      .map((p, idx) => ({ player: p, index: idx }))
+      .filter(({ player: p, index: idx }) => idx !== playerIndex && (p.territories || []).some(t => t.biome === biome));
+  };
+
+  const biomeOwners = selectedBiome ? getOwnersOfBiome(selectedBiome) : [];
+
   const buyTerritory = () => {
     if (!selectedBiome) return alert("Sélectionnez un biome !");
     const cost = isNeutral ? difficulty : 10;
     if (player.or < cost) return alert(`Or insuffisant ! (${cost} Or requis)`);
     
     const biomeResource = BIOMES[selectedBiome].resource;
+    
+    // Si territoire adverse, retirer à l'adversaire
+    if (!isNeutral && targetOwner !== null) {
+      const owner = gameState.players[targetOwner];
+      const territoryToRemove = (owner.territories || []).find(t => t.biome === selectedBiome);
+      if (territoryToRemove) {
+        updatePlayer(targetOwner, { 
+          territories: owner.territories.filter(t => t.id !== territoryToRemove.id) 
+        });
+      }
+    }
     
     updateCurrentPlayer({ 
       or: player.or - cost,
@@ -2034,7 +2392,7 @@ function BiomeTab({ player, gameState, updateCurrentPlayer, addPdvWithHistory, p
     });
     if (isNeutral) addPdvWithHistory(playerIndex, 1, 'TERRITORY', { biome: BIOMES[selectedBiome].name, method: 'achat' });
     
-    setResult({ success: true, bought: true, cost, isNeutral, resourceGained: biomeResource });
+    setResult({ success: true, bought: true, cost, isNeutral, resourceGained: biomeResource, stolenFrom: !isNeutral && targetOwner !== null ? gameState.players[targetOwner].playerName : null });
   };
 
   const startAttack = () => {
@@ -2163,8 +2521,21 @@ function BiomeTab({ player, gameState, updateCurrentPlayer, addPdvWithHistory, p
     }
 
     const biomeResource = BIOMES[selectedBiome].resource;
+    let stolenFrom = null;
 
-    setResult({ ...resultData, heal, resourceGained: resultData.success ? biomeResource : null });
+    // Si territoire adverse et succès, retirer à l'adversaire
+    if (resultData.success && !resultData.isNeutral && targetOwner !== null && updatePlayer) {
+      const owner = gameState.players[targetOwner];
+      const territoryToRemove = (owner.territories || []).find(t => t.biome === selectedBiome);
+      if (territoryToRemove) {
+        updatePlayer(targetOwner, { 
+          territories: owner.territories.filter(t => t.id !== territoryToRemove.id) 
+        });
+        stolenFrom = owner.playerName;
+      }
+    }
+
+    setResult({ ...resultData, heal, resourceGained: resultData.success ? biomeResource : null, stolenFrom });
     
     if (resultData.success) {
       if (resultData.isNeutral) addPdvWithHistory(playerIndex, 1, 'TERRITORY', { biome: BIOMES[selectedBiome].name, difficulty });
@@ -2275,6 +2646,7 @@ function BiomeTab({ player, gameState, updateCurrentPlayer, addPdvWithHistory, p
           React.createElement("div", { className: "text-2xl font-bold" }, "TERRITOIRE ACHETÉ !"),
           React.createElement("div", { className: "mt-4" }, `Coût: ${result.cost} Or`),
           result.isNeutral && React.createElement("div", { className: "mt-2 p-2 bg-white bg-opacity-20 rounded" }, "🏆 +1 PDV"),
+          result.stolenFrom && React.createElement("div", { className: "mt-2 p-2 bg-red-500 bg-opacity-50 rounded" }, `🏰 Volé à ${result.stolenFrom} !`),
           React.createElement("div", { className: "mt-2 p-2 bg-amber-500 bg-opacity-50 rounded" }, `📦 +1 ${result.resourceGained}`)
         ),
         React.createElement("button", { onClick: () => setResult(null), className: "w-full py-3 bg-gray-600 text-white rounded-xl font-semibold" }, "Fermer")
@@ -2297,7 +2669,9 @@ function BiomeTab({ player, gameState, updateCurrentPlayer, addPdvWithHistory, p
           result.sacrifice > 0 && React.createElement("div", { className: "flex justify-between text-red-300" }, React.createElement("span", null, "Sacrifice:"), React.createElement("span", { className: "font-bold" }, `+${result.sacrifice}`))
         ),
         result.success && result.isNeutral && React.createElement("div", { className: "mt-4 p-3 bg-white bg-opacity-20 rounded-lg" }, "🏆 +1 PDV - Territoire conquis !"),
-        result.success && !result.isNeutral && React.createElement("div", { className: "mt-4 p-3 bg-white bg-opacity-20 rounded-lg" }, "🏰 Territoire adverse capturé ! (pas de PDV)"),
+        result.success && !result.isNeutral && React.createElement("div", { className: "mt-4 p-3 bg-white bg-opacity-20 rounded-lg" }, 
+          result.stolenFrom ? `🏰 Territoire volé à ${result.stolenFrom} !` : "🏰 Territoire adverse capturé !"
+        ),
         result.success && result.resourceGained && React.createElement("div", { className: "mt-2 p-3 bg-amber-500 bg-opacity-50 rounded-lg" }, `📦 +1 ${result.resourceGained}`),
         result.success && result.heal > 0 && React.createElement("div", { className: "mt-2 p-3 bg-green-500 bg-opacity-50 rounded-lg" }, `💚 Régénération: +${result.heal} PV`),
         !result.success && result.damage > 0 && React.createElement("div", { className: "mt-4 p-3 bg-white bg-opacity-20 rounded-lg" }, `💥 Dégâts subis: ${result.damage} PV`),
@@ -2348,21 +2722,46 @@ function BiomeTab({ player, gameState, updateCurrentPlayer, addPdvWithHistory, p
         React.createElement("span", { className: "text-sm font-semibold" }, "Chasseur: choix distance disponible")
       )
     ),
-    !isNeutral && React.createElement("div", { className: "p-3 bg-orange-50 border-2 border-orange-300 rounded-lg" },
-      React.createElement("p", { className: "text-orange-800 text-sm" }, "⚠️ Territoire adverse: pas de PDV, capture sur critique (0) ou victoire"),
-      canBuy && React.createElement("p", { className: "text-orange-800 text-sm mt-1" }, "💰 Marchand: achat possible pour 10 Or")
+    !isNeutral && React.createElement("div", { className: "space-y-3" },
+      React.createElement("div", { className: "p-3 bg-orange-50 border-2 border-orange-300 rounded-lg" },
+        React.createElement("p", { className: "text-orange-800 text-sm" }, "⚠️ Territoire adverse: pas de PDV, le propriétaire perd son territoire !"),
+        canBuy && React.createElement("p", { className: "text-orange-800 text-sm mt-1" }, "💰 Marchand: achat possible pour 10 Or")
+      ),
+      biomeOwners.length > 0 && React.createElement("div", { className: "p-3 bg-red-50 border-2 border-red-300 rounded-lg" },
+        React.createElement("h4", { className: "font-bold text-red-800 mb-2" }, "🎯 Propriétaire à attaquer"),
+        React.createElement("div", { className: "space-y-2" },
+          biomeOwners.map(({ player: owner, index }) => {
+            const ownerTerritories = (owner.territories || []).filter(t => t.biome === selectedBiome).length;
+            return React.createElement("button", { 
+              key: index, 
+              onClick: () => setTargetOwner(index),
+              className: `w-full p-2 rounded-lg text-left ${targetOwner === index ? 'bg-red-600 text-white' : 'bg-white hover:bg-red-100 border border-red-300'}`
+            },
+              React.createElement("div", { className: "flex justify-between items-center" },
+                React.createElement("span", { className: "font-bold" }, owner.playerName),
+                React.createElement("span", { className: "text-sm" }, `${ownerTerritories} ${BIOMES[selectedBiome].name.split(' ')[0]}`)
+              )
+            );
+          })
+        )
+      ),
+      biomeOwners.length === 0 && React.createElement("div", { className: "p-3 bg-gray-100 rounded-lg text-center text-gray-600" },
+        "Aucun adversaire ne possède de territoire dans ce biome"
+      )
     ),
     canReroll && React.createElement("div", { className: "p-3 bg-purple-50 border-2 border-purple-300 rounded-lg" },
       React.createElement("p", { className: "text-purple-800 text-sm" }, "🔮 Vicaire: possibilité de changer la stat après le lancer (coût: 1 ressource)")
     ),
     React.createElement("div", { className: "grid grid-cols-1 gap-3" },
       React.createElement("button", {
-        onClick: startAttack, disabled: !selectedBiome || player.usedAttackDice,
-        className: `w-full py-4 rounded-xl font-bold text-lg ${selectedBiome && !player.usedAttackDice ? 'bg-gradient-to-r from-amber-600 to-orange-600 text-white hover:from-amber-700 hover:to-orange-700' : 'bg-gray-300 text-gray-500 cursor-not-allowed'}`
+        onClick: startAttack, 
+        disabled: !selectedBiome || player.usedAttackDice || (!isNeutral && biomeOwners.length > 0 && targetOwner === null),
+        className: `w-full py-4 rounded-xl font-bold text-lg ${selectedBiome && !player.usedAttackDice && (isNeutral || biomeOwners.length === 0 || targetOwner !== null) ? 'bg-gradient-to-r from-amber-600 to-orange-600 text-white hover:from-amber-700 hover:to-orange-700' : 'bg-gray-300 text-gray-500 cursor-not-allowed'}`
       }, "⚔️ Attaquer le territoire"),
       canBuy && React.createElement("button", {
-        onClick: buyTerritory, disabled: !selectedBiome || player.or < (isNeutral ? difficulty : 10),
-        className: `w-full py-3 rounded-xl font-bold ${selectedBiome && player.or >= (isNeutral ? difficulty : 10) ? 'bg-gradient-to-r from-yellow-500 to-amber-500 text-white hover:from-yellow-600 hover:to-amber-600' : 'bg-gray-300 text-gray-500 cursor-not-allowed'}`
+        onClick: buyTerritory, 
+        disabled: !selectedBiome || player.or < (isNeutral ? difficulty : 10) || (!isNeutral && biomeOwners.length > 0 && targetOwner === null),
+        className: `w-full py-3 rounded-xl font-bold ${selectedBiome && player.or >= (isNeutral ? difficulty : 10) && (isNeutral || biomeOwners.length === 0 || targetOwner !== null) ? 'bg-gradient-to-r from-yellow-500 to-amber-500 text-white hover:from-yellow-600 hover:to-amber-600' : 'bg-gray-300 text-gray-500 cursor-not-allowed'}`
       }, `🪙 Acheter (${isNeutral ? difficulty : 10} Or) - Marchand`)
     )
   );
