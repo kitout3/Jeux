@@ -1065,7 +1065,7 @@ function TurnGameScreen({ gameState, setGameState, updateCurrentPlayer, updatePl
     React.createElement("div", { className: "bg-white shadow-md" },
       React.createElement("div", { className: "max-w-4xl mx-auto overflow-x-auto" },
         React.createElement("div", { className: "flex" },
-          ['anomalie', 'quete', 'de', 'attaque', 'objectif', 'echange', 'event', 'personnage', 'pdv'].map(tab => React.createElement("button", {
+          ['anomalie', 'quete', 'de', 'attaque', 'objectif', 'echange', 'pari', 'event', 'personnage', 'pdv'].map(tab => React.createElement("button", {
             key: tab, onClick: () => setActiveTab(tab),
             className: `flex-shrink-0 px-3 py-3 font-semibold transition-colors border-b-4 text-xs ${activeTab === tab ? 'bg-blue-600 text-white border-blue-800' : 'bg-gray-100 text-gray-600 border-transparent hover:bg-gray-200'}`
           },
@@ -1075,6 +1075,7 @@ function TurnGameScreen({ gameState, setGameState, updateCurrentPlayer, updatePl
             tab === 'attaque' && 'Attaque',
             tab === 'objectif' && 'Objectif',
             tab === 'echange' && 'Échange',
+            tab === 'pari' && 'Pari',
             tab === 'event' && 'Event',
             tab === 'personnage' && 'Perso',
             tab === 'pdv' && 'PDV'
@@ -1090,7 +1091,8 @@ function TurnGameScreen({ gameState, setGameState, updateCurrentPlayer, updatePl
           activeTab === 'de' && React.createElement(DeTab, { player: currentPlayer, gameState, updateCurrentPlayer }),
           activeTab === 'attaque' && React.createElement(AttaqueTab, { player: currentPlayer, gameState, setGameState, updateCurrentPlayer, updatePlayer, addPdvWithHistory, playerIndex: gameState.currentTurn }),
           activeTab === 'objectif' && React.createElement(ObjectifTab, { player: currentPlayer, gameState, setGameState, addPdvWithHistory, playerIndex: gameState.currentTurn }),
-          activeTab === 'echange' && React.createElement(EchangeTab, { player: currentPlayer, updateCurrentPlayer }),
+          activeTab === 'echange' && React.createElement(EchangeTab, { player: currentPlayer, gameState, updateCurrentPlayer, updatePlayer }),
+          activeTab === 'pari' && React.createElement(PariTab, { player: currentPlayer, gameState, updateCurrentPlayer }),
           activeTab === 'event' && React.createElement(EventTab, { gameState, setGameState }),
           activeTab === 'personnage' && React.createElement(PersonnageTab, { player: currentPlayer, updateCurrentPlayer, gameState, setGameState, onPassStart: handlePassStart }),
           activeTab === 'pdv' && React.createElement(PdvHistoryTab, { player: currentPlayer, gameState })
@@ -1244,88 +1246,359 @@ function ObjectifTab({ player, gameState, setGameState, addPdvWithHistory, playe
 }
 
 // ============= ÉCHANGE TAB =============
-function EchangeTab({ player, updateCurrentPlayer }) {
-  const [selectedResource, setSelectedResource] = useState(null);
-  const [amount, setAmount] = useState(1);
+function EchangeTab({ player, gameState, updateCurrentPlayer, updatePlayer }) {
+  const [selectedTarget, setSelectedTarget] = useState(null);
+  const [giveResource, setGiveResource] = useState(null);
+  const [giveAmount, setGiveAmount] = useState(1);
+  const [receiveResource, setReceiveResource] = useState(null);
+  const [receiveAmount, setReceiveAmount] = useState(1);
+  const [confirmed, setConfirmed] = useState(false);
   
-  const exchange = () => {
-    if (!selectedResource) return;
-    if (player[selectedResource] < amount) return;
-    
-    const rate = EXCHANGE_RATES[selectedResource].toOr;
-    const orGained = amount * rate;
+  const RESOURCE_VALUES = { or: 1, cuivre: 2, argent: 3, obsidienne: 4 };
+  const RESOURCES = [
+    { key: 'or', emoji: '💰', name: 'Or', value: 1 },
+    { key: 'cuivre', emoji: '🥉', name: 'Cuivre', value: 2 },
+    { key: 'argent', emoji: '🥈', name: 'Argent', value: 3 },
+    { key: 'obsidienne', emoji: '⬛', name: 'Obsidienne', value: 4 }
+  ];
+  
+  const opponents = gameState.players.filter((_, i) => i !== gameState.currentTurn);
+  const targetPlayer = selectedTarget !== null ? gameState.players[selectedTarget] : null;
+  
+  const giveValue = giveResource ? giveAmount * RESOURCE_VALUES[giveResource] : 0;
+  const receiveValue = receiveResource ? receiveAmount * RESOURCE_VALUES[receiveResource] : 0;
+  const isBalanced = giveValue > 0 && giveValue === receiveValue;
+  
+  const canExchange = selectedTarget !== null && giveResource && receiveResource && 
+                      player[giveResource] >= giveAmount && 
+                      targetPlayer && targetPlayer[receiveResource] >= receiveAmount &&
+                      isBalanced && !player.usedAttackDice;
+  
+  const executeExchange = () => {
+    if (!canExchange) return;
     
     updateCurrentPlayer({
-      [selectedResource]: player[selectedResource] - amount,
-      or: player.or + orGained
+      [giveResource]: player[giveResource] - giveAmount,
+      [receiveResource]: player[receiveResource] + receiveAmount,
+      usedAttackDice: true
     });
     
-    setSelectedResource(null);
-    setAmount(1);
+    updatePlayer(selectedTarget, {
+      [giveResource]: targetPlayer[giveResource] + giveAmount,
+      [receiveResource]: targetPlayer[receiveResource] - receiveAmount
+    });
+    
+    setConfirmed(true);
   };
   
-  const maxAmount = selectedResource ? player[selectedResource] : 0;
-  const orGained = selectedResource ? amount * EXCHANGE_RATES[selectedResource].toOr : 0;
+  const reset = () => {
+    setSelectedTarget(null);
+    setGiveResource(null);
+    setGiveAmount(1);
+    setReceiveResource(null);
+    setReceiveAmount(1);
+    setConfirmed(false);
+  };
+  
+  if (confirmed) {
+    return React.createElement("div", { className: "space-y-6" },
+      React.createElement("div", { className: "bg-green-100 border-2 border-green-400 rounded-xl p-6 text-center" },
+        React.createElement("div", { className: "text-4xl mb-4" }, "✅"),
+        React.createElement("h3", { className: "text-xl font-bold text-green-800" }, "Échange effectué !"),
+        React.createElement("p", { className: "text-green-700 mt-2" }, 
+          `${giveAmount} ${giveResource} ⇄ ${receiveAmount} ${receiveResource} avec ${targetPlayer.playerName}`)
+      ),
+      React.createElement("button", { onClick: reset, className: "w-full py-3 bg-gray-600 text-white rounded-xl font-bold" }, "Fermer")
+    );
+  }
   
   return React.createElement("div", { className: "space-y-6" },
-    React.createElement("h3", { className: "text-2xl font-bold text-center text-gray-800" }, "💱 Échange"),
-    React.createElement("p", { className: "text-gray-600 text-center" }, "Convertissez vos ressources en Or"),
+    React.createElement("h3", { className: "text-2xl font-bold text-center text-gray-800" }, "💱 Échange entre joueurs"),
+    
+    player.usedAttackDice && React.createElement("div", { className: "p-3 bg-yellow-50 border-2 border-yellow-300 rounded-lg text-center" },
+      React.createElement("p", { className: "text-yellow-800 font-semibold" }, "⚠️ Jet d'attaque déjà utilisé ce tour")
+    ),
     
     // Taux de change
-    React.createElement("div", { className: "bg-yellow-50 border-2 border-yellow-300 rounded-xl p-4" },
-      React.createElement("h4", { className: "font-bold text-yellow-800 mb-2" }, "📊 Taux de change"),
-      React.createElement("div", { className: "grid grid-cols-3 gap-2 text-center text-sm" },
-        Object.entries(EXCHANGE_RATES).map(([key, rate]) => React.createElement("div", { key, className: "bg-white rounded p-2" },
-          React.createElement("div", null, rate.label)
-        ))
+    React.createElement("div", { className: "bg-yellow-50 border-2 border-yellow-300 rounded-xl p-3" },
+      React.createElement("h4", { className: "font-bold text-yellow-800 mb-2 text-center text-sm" }, "📊 Valeurs d'échange"),
+      React.createElement("div", { className: "flex justify-center gap-4 text-sm" },
+        React.createElement("span", null, "💰 Or = 1"),
+        React.createElement("span", null, "🥉 Cuivre = 2"),
+        React.createElement("span", null, "🥈 Argent = 3"),
+        React.createElement("span", null, "⬛ Obsidienne = 4")
       )
     ),
     
-    // Sélection ressource
-    React.createElement("div", { className: "grid grid-cols-3 gap-4" },
-      Object.entries(EXCHANGE_RATES).map(([key, rate]) => {
-        const resourceEmoji = key === 'cuivre' ? '🥉' : key === 'argent' ? '🥈' : '⬛';
-        const resourceName = key.charAt(0).toUpperCase() + key.slice(1);
-        return React.createElement("button", { 
-          key, 
-          onClick: () => { setSelectedResource(key); setAmount(1); },
-          className: `p-4 rounded-xl border-2 ${selectedResource === key ? 'border-blue-600 bg-blue-50' : 'border-gray-300 hover:border-blue-400'}`
-        },
-          React.createElement("div", { className: "text-3xl mb-2" }, resourceEmoji),
-          React.createElement("div", { className: "font-bold text-gray-800" }, resourceName),
-          React.createElement("div", { className: "text-lg text-blue-600" }, player[key]),
-          React.createElement("div", { className: "text-xs text-gray-500" }, `= ${rate.toOr} Or/unité`)
-        );
-      })
+    // Sélection du joueur cible
+    React.createElement("div", { className: "bg-blue-50 border-2 border-blue-300 rounded-xl p-4" },
+      React.createElement("h4", { className: "font-bold text-blue-800 mb-3" }, "1️⃣ Choisir un joueur"),
+      React.createElement("div", { className: "space-y-2" },
+        opponents.map(o => {
+          const idx = gameState.players.findIndex(x => x.id === o.id);
+          return React.createElement("button", { 
+            key: o.id, 
+            onClick: () => setSelectedTarget(idx),
+            className: `w-full p-3 rounded-lg text-left ${selectedTarget === idx ? 'bg-blue-600 text-white' : 'bg-white hover:bg-blue-100 border border-gray-300'}`
+          },
+            React.createElement("div", { className: "flex justify-between items-center" },
+              React.createElement("span", { className: "font-bold" }, o.playerName),
+              React.createElement("div", { className: "flex gap-2 text-sm" },
+                React.createElement("span", null, `💰${o.or}`),
+                React.createElement("span", null, `🥉${o.cuivre}`),
+                React.createElement("span", null, `🥈${o.argent}`),
+                React.createElement("span", null, `⬛${o.obsidienne}`)
+              )
+            )
+          );
+        })
+      )
     ),
     
-    // Quantité et échange
-    selectedResource && React.createElement("div", { className: "bg-blue-50 border-2 border-blue-300 rounded-xl p-4" },
-      React.createElement("h4", { className: "font-bold text-blue-800 mb-3" }, "Quantité à échanger"),
-      React.createElement("div", { className: "flex items-center justify-center gap-4 mb-4" },
-        React.createElement("button", { onClick: () => setAmount(Math.max(1, amount - 1)), className: "w-12 h-12 bg-blue-600 text-white rounded-full font-bold text-xl" }, "-"),
-        React.createElement("span", { className: "text-4xl font-bold text-blue-600" }, amount),
-        React.createElement("button", { onClick: () => setAmount(Math.min(maxAmount, amount + 1)), className: "w-12 h-12 bg-blue-600 text-white rounded-full font-bold text-xl" }, "+")
+    // Ressource à donner
+    selectedTarget !== null && React.createElement("div", { className: "bg-red-50 border-2 border-red-300 rounded-xl p-4" },
+      React.createElement("h4", { className: "font-bold text-red-800 mb-3" }, "2️⃣ Vous DONNEZ"),
+      React.createElement("div", { className: "grid grid-cols-4 gap-2 mb-3" },
+        RESOURCES.map(r => {
+          const hasResource = player[r.key] > 0;
+          return React.createElement("button", { 
+            key: r.key, 
+            onClick: () => { if(hasResource) { setGiveResource(r.key); setGiveAmount(1); } },
+            disabled: !hasResource,
+            className: `p-2 rounded-lg text-center ${giveResource === r.key ? 'bg-red-600 text-white' : hasResource ? 'bg-white hover:bg-red-100 border border-gray-300' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}`
+          },
+            React.createElement("div", { className: "text-xl" }, r.emoji),
+            React.createElement("div", { className: "text-xs" }, `${player[r.key]} dispo`)
+          );
+        })
       ),
-      React.createElement("div", { className: "text-center text-lg mb-4" },
-        React.createElement("span", { className: "text-gray-600" }, `${amount} ${selectedResource} → `),
-        React.createElement("span", { className: "text-yellow-600 font-bold" }, `${orGained} Or 💰`)
-      ),
-      React.createElement("button", { 
-        onClick: exchange, 
-        disabled: amount > maxAmount || amount < 1,
-        className: `w-full py-3 rounded-xl font-bold ${amount <= maxAmount && amount >= 1 ? 'bg-gradient-to-r from-yellow-500 to-amber-500 text-white hover:from-yellow-600 hover:to-amber-600' : 'bg-gray-300 text-gray-500 cursor-not-allowed'}`
-      }, "💱 Échanger")
+      giveResource && React.createElement("div", { className: "flex items-center justify-center gap-4" },
+        React.createElement("button", { onClick: () => setGiveAmount(Math.max(1, giveAmount - 1)), className: "w-10 h-10 bg-red-600 text-white rounded-full font-bold" }, "-"),
+        React.createElement("div", { className: "text-center" },
+          React.createElement("span", { className: "text-3xl font-bold text-red-600" }, giveAmount),
+          React.createElement("div", { className: "text-sm text-gray-600" }, `Valeur: ${giveValue}`)
+        ),
+        React.createElement("button", { onClick: () => setGiveAmount(Math.min(player[giveResource], giveAmount + 1)), className: "w-10 h-10 bg-red-600 text-white rounded-full font-bold" }, "+")
+      )
     ),
+    
+    // Ressource à recevoir
+    selectedTarget !== null && giveResource && React.createElement("div", { className: "bg-green-50 border-2 border-green-300 rounded-xl p-4" },
+      React.createElement("h4", { className: "font-bold text-green-800 mb-3" }, "3️⃣ Vous RECEVEZ"),
+      React.createElement("div", { className: "grid grid-cols-4 gap-2 mb-3" },
+        RESOURCES.map(r => {
+          const targetHas = targetPlayer && targetPlayer[r.key] > 0;
+          return React.createElement("button", { 
+            key: r.key, 
+            onClick: () => { if(targetHas) { setReceiveResource(r.key); setReceiveAmount(1); } },
+            disabled: !targetHas,
+            className: `p-2 rounded-lg text-center ${receiveResource === r.key ? 'bg-green-600 text-white' : targetHas ? 'bg-white hover:bg-green-100 border border-gray-300' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}`
+          },
+            React.createElement("div", { className: "text-xl" }, r.emoji),
+            React.createElement("div", { className: "text-xs" }, `${targetPlayer ? targetPlayer[r.key] : 0} dispo`)
+          );
+        })
+      ),
+      receiveResource && React.createElement("div", { className: "flex items-center justify-center gap-4" },
+        React.createElement("button", { onClick: () => setReceiveAmount(Math.max(1, receiveAmount - 1)), className: "w-10 h-10 bg-green-600 text-white rounded-full font-bold" }, "-"),
+        React.createElement("div", { className: "text-center" },
+          React.createElement("span", { className: "text-3xl font-bold text-green-600" }, receiveAmount),
+          React.createElement("div", { className: "text-sm text-gray-600" }, `Valeur: ${receiveValue}`)
+        ),
+        React.createElement("button", { onClick: () => setReceiveAmount(Math.min(targetPlayer[receiveResource], receiveAmount + 1)), className: "w-10 h-10 bg-green-600 text-white rounded-full font-bold" }, "+")
+      )
+    ),
+    
+    // Validation échange
+    giveResource && receiveResource && React.createElement("div", { className: `p-4 rounded-xl border-2 ${isBalanced ? 'bg-green-100 border-green-400' : 'bg-red-100 border-red-400'}` },
+      React.createElement("div", { className: "flex items-center justify-center gap-4 text-lg" },
+        React.createElement("div", { className: "text-center" },
+          React.createElement("div", { className: "text-2xl" }, RESOURCES.find(r => r.key === giveResource)?.emoji),
+          React.createElement("div", { className: "font-bold" }, `${giveAmount} (val: ${giveValue})`)
+        ),
+        React.createElement("div", { className: "text-2xl" }, isBalanced ? "=" : "≠"),
+        React.createElement("div", { className: "text-center" },
+          React.createElement("div", { className: "text-2xl" }, RESOURCES.find(r => r.key === receiveResource)?.emoji),
+          React.createElement("div", { className: "font-bold" }, `${receiveAmount} (val: ${receiveValue})`)
+        )
+      ),
+      !isBalanced && React.createElement("p", { className: "text-center text-red-600 font-bold mt-2" }, "⚠️ Les valeurs doivent être égales !")
+    ),
+    
+    // Bouton confirmer
+    canExchange && React.createElement("button", { 
+      onClick: executeExchange,
+      className: "w-full py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl font-bold hover:from-purple-700 hover:to-blue-700"
+    }, `💱 Échanger avec ${targetPlayer.playerName}`),
     
     // Ressources actuelles
     React.createElement("div", { className: "bg-gray-50 rounded-xl p-4" },
       React.createElement("h4", { className: "font-bold text-gray-800 mb-2" }, "💰 Vos ressources"),
       React.createElement("div", { className: "grid grid-cols-4 gap-2 text-center" },
-        React.createElement("div", null, React.createElement("div", { className: "text-2xl" }, "💰"), React.createElement("div", { className: "font-bold" }, player.or), React.createElement("div", { className: "text-xs text-gray-500" }, "Or")),
-        React.createElement("div", null, React.createElement("div", { className: "text-2xl" }, "🥉"), React.createElement("div", { className: "font-bold" }, player.cuivre), React.createElement("div", { className: "text-xs text-gray-500" }, "Cuivre")),
-        React.createElement("div", null, React.createElement("div", { className: "text-2xl" }, "🥈"), React.createElement("div", { className: "font-bold" }, player.argent), React.createElement("div", { className: "text-xs text-gray-500" }, "Argent")),
-        React.createElement("div", null, React.createElement("div", { className: "text-2xl" }, "⬛"), React.createElement("div", { className: "font-bold" }, player.obsidienne), React.createElement("div", { className: "text-xs text-gray-500" }, "Obsidienne"))
+        RESOURCES.map(r => React.createElement("div", { key: r.key },
+          React.createElement("div", { className: "text-2xl" }, r.emoji),
+          React.createElement("div", { className: "font-bold" }, player[r.key]),
+          React.createElement("div", { className: "text-xs text-gray-500" }, r.name)
+        ))
+      )
+    )
+  );
+}
+
+// ============= PARI TAB =============
+function PariTab({ player, gameState, updateCurrentPlayer }) {
+  const [selectedStat, setSelectedStat] = useState(null);
+  const [betAmount, setBetAmount] = useState(1);
+  const [result, setResult] = useState(null);
+  
+  const stats = [
+    { key: 'random', name: 'Aléatoire', emoji: '🎲' },
+    ...Object.entries(STAT_NAMES).map(([k, n]) => ({ key: k, name: n, emoji: '📊' }))
+  ];
+  
+  const getStatValue = (statKey) => {
+    if (statKey === 'random') return null;
+    const base = player.baseStats?.[statKey] || 0;
+    const effects = player.effects.filter(e => e.stat === statKey).reduce((s, e) => s + e.delta, 0);
+    return base + effects;
+  };
+  
+  const placeBet = () => {
+    if (!selectedStat || betAmount < 1 || betAmount > player.or || player.usedAttackDice) return;
+    
+    // Déterminer la stat utilisée
+    let actualStat = selectedStat;
+    if (selectedStat === 'random') {
+      const statKeys = Object.keys(STAT_NAMES);
+      actualStat = statKeys[Math.floor(Math.random() * statKeys.length)];
+    }
+    
+    const statValue = getStatValue(actualStat);
+    const diceRoll = Math.floor(Math.random() * 10) + 1;
+    const total = diceRoll + statValue;
+    const targetScore = betAmount; // Le score à atteindre = l'or parié
+    const won = total >= targetScore;
+    
+    setResult({
+      stat: actualStat,
+      statName: STAT_NAMES[actualStat],
+      statValue,
+      diceRoll,
+      total,
+      targetScore,
+      betAmount,
+      won,
+      wasRandom: selectedStat === 'random'
+    });
+    
+    if (won) {
+      updateCurrentPlayer({ or: player.or + betAmount, usedAttackDice: true });
+    } else {
+      updateCurrentPlayer({ or: player.or - betAmount, usedAttackDice: true });
+    }
+  };
+  
+  const reset = () => {
+    setResult(null);
+    setSelectedStat(null);
+    setBetAmount(1);
+  };
+  
+  if (result) {
+    return React.createElement("div", { className: "space-y-6" },
+      React.createElement("div", { className: `p-6 rounded-xl text-white text-center ${result.won ? 'bg-gradient-to-r from-green-600 to-emerald-600' : 'bg-gradient-to-r from-red-600 to-rose-600'}` },
+        React.createElement("div", { className: "text-5xl mb-4" }, result.won ? "🎉" : "😢"),
+        React.createElement("h3", { className: "text-2xl font-bold" }, result.won ? "GAGNÉ !" : "PERDU !"),
+        result.wasRandom && React.createElement("div", { className: "text-lg mt-2" }, `🎲 Stat aléatoire: ${result.statName}`),
+        React.createElement("div", { className: "mt-4 bg-white bg-opacity-20 rounded-lg p-4" },
+          React.createElement("div", { className: "grid grid-cols-3 gap-4 text-center" },
+            React.createElement("div", null,
+              React.createElement("div", { className: "text-sm opacity-80" }, "Dé"),
+              React.createElement("div", { className: "text-2xl font-bold" }, result.diceRoll)
+            ),
+            React.createElement("div", null,
+              React.createElement("div", { className: "text-sm opacity-80" }, result.statName),
+              React.createElement("div", { className: "text-2xl font-bold" }, `+${result.statValue}`)
+            ),
+            React.createElement("div", null,
+              React.createElement("div", { className: "text-sm opacity-80" }, "Total"),
+              React.createElement("div", { className: "text-2xl font-bold" }, result.total)
+            )
+          ),
+          React.createElement("div", { className: "mt-4 text-lg" }, 
+            `${result.total} ${result.won ? '≥' : '<'} ${result.targetScore} (cible = or parié)`)
+        ),
+        React.createElement("div", { className: "mt-4 text-xl font-bold" },
+          result.won ? `+${result.betAmount} Or 💰` : `-${result.betAmount} Or 💸`
+        )
+      ),
+      React.createElement("button", { onClick: reset, className: "w-full py-3 bg-gray-600 text-white rounded-xl font-bold" }, "Fermer")
+    );
+  }
+  
+  return React.createElement("div", { className: "space-y-6" },
+    React.createElement("h3", { className: "text-2xl font-bold text-center text-gray-800" }, "🎰 Pari"),
+    React.createElement("p", { className: "text-gray-600 text-center" }, "Pariez de l'or sur vos statistiques !"),
+    
+    player.usedAttackDice && React.createElement("div", { className: "p-3 bg-yellow-50 border-2 border-yellow-300 rounded-lg text-center" },
+      React.createElement("p", { className: "text-yellow-800 font-semibold" }, "⚠️ Jet d'attaque déjà utilisé ce tour")
+    ),
+    
+    React.createElement("div", { className: "bg-yellow-50 border-2 border-yellow-300 rounded-xl p-4 text-center" },
+      React.createElement("div", { className: "text-3xl mb-2" }, "💰"),
+      React.createElement("div", { className: "text-xl font-bold text-yellow-800" }, `${player.or} Or disponible`)
+    ),
+    
+    // Sélection de la stat
+    React.createElement("div", { className: "bg-blue-50 border-2 border-blue-300 rounded-xl p-4" },
+      React.createElement("h4", { className: "font-bold text-blue-800 mb-3" }, "1️⃣ Choisir une statistique"),
+      React.createElement("div", { className: "grid grid-cols-4 gap-2" },
+        stats.map(s => {
+          const value = s.key === 'random' ? '?' : getStatValue(s.key);
+          return React.createElement("button", { 
+            key: s.key, 
+            onClick: () => setSelectedStat(s.key),
+            className: `p-3 rounded-lg text-center ${selectedStat === s.key ? 'bg-blue-600 text-white' : 'bg-white hover:bg-blue-100 border border-gray-300'}`
+          },
+            React.createElement("div", { className: "text-lg font-bold" }, s.key === 'random' ? '🎲' : s.name.substring(0, 3)),
+            React.createElement("div", { className: "text-sm" }, s.key === 'random' ? 'Aléa' : `+${value}`)
+          );
+        })
+      )
+    ),
+    
+    // Montant du pari = score cible
+    selectedStat && React.createElement("div", { className: "bg-yellow-50 border-2 border-yellow-300 rounded-xl p-4" },
+      React.createElement("h4", { className: "font-bold text-yellow-800 mb-3" }, "2️⃣ Or à parier (= score à atteindre)"),
+      React.createElement("div", { className: "flex items-center justify-center gap-4" },
+        React.createElement("button", { onClick: () => setBetAmount(Math.max(1, betAmount - 1)), className: "w-12 h-12 bg-yellow-600 text-white rounded-full font-bold text-xl" }, "-"),
+        React.createElement("span", { className: "text-5xl font-bold text-yellow-600" }, betAmount),
+        React.createElement("button", { onClick: () => setBetAmount(Math.min(player.or, betAmount + 1)), className: "w-12 h-12 bg-yellow-600 text-white rounded-full font-bold text-xl" }, "+")
+      ),
+      React.createElement("div", { className: "text-center mt-3 p-3 bg-white rounded-lg" },
+        React.createElement("p", { className: "text-gray-700" }, `Cible: ${betAmount} | Dé (1-10) + Stat ≥ ${betAmount}`),
+        React.createElement("div", { className: "flex justify-center gap-4 mt-2" },
+          React.createElement("span", { className: "text-green-600 font-bold" }, `✅ +${betAmount} Or`),
+          React.createElement("span", { className: "text-red-600 font-bold" }, `❌ -${betAmount} Or`)
+        )
+      )
+    ),
+    
+    // Bouton parier
+    selectedStat && betAmount > 0 && betAmount <= player.or && !player.usedAttackDice && React.createElement("button", { 
+      onClick: placeBet,
+      className: "w-full py-4 bg-gradient-to-r from-amber-500 to-yellow-500 text-white rounded-xl font-bold text-lg hover:from-amber-600 hover:to-yellow-600"
+    }, `🎲 Parier ${betAmount} Or !`),
+    
+    // Info
+    React.createElement("div", { className: "bg-gray-100 rounded-xl p-4 text-sm text-gray-600" },
+      React.createElement("h4", { className: "font-bold mb-2" }, "📖 Règles du pari"),
+      React.createElement("ul", { className: "space-y-1" },
+        React.createElement("li", null, "• Choisissez une statistique (ou aléatoire)"),
+        React.createElement("li", null, "• L'or parié = le score à atteindre"),
+        React.createElement("li", null, "• Si Dé + Stat ≥ Or parié : vous gagnez la mise"),
+        React.createElement("li", null, "• Sinon : vous perdez la mise"),
+        React.createElement("li", null, "• ⚠️ Consomme le jet d'attaque")
       )
     )
   );
