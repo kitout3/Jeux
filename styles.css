@@ -9,3 +9,6 @@
 input,select{min-width:0;max-width:100%}
 @media(max-width:800px){.setup-grid{grid-template-columns:minmax(0,1fr)}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{transition:none!important;animation:none!important;scroll-behavior:auto!important}}
+
+/* Keep native mobile form-control overflow inside the viewport; board panning stays local. */
+html,body{max-width:100%;overflow-x:clip}
