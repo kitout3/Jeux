@@ -14,8 +14,9 @@ try{
   const browser=await browserType.launch({headless:true}),context=await browser.newContext({viewport,acceptDownloads:true,isMobile:label==='mobile',hasTouch:label==='mobile'});
   const page=await context.newPage();page.on('pageerror',e=>errors.push(label+': '+e.message));
   await page.goto('http://127.0.0.1:4173/');await page.getByRole('button',{name:'Commencer l’aventure'}).waitFor();assert.ok(await page.locator('.map-preview').evaluate(i=>i.complete&&i.naturalWidth>0));
-  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'setup overflow '+label);
   await page.screenshot({path:'qa/'+label+'-setup.png',fullPage:true});
+  const overflow=await page.evaluate(()=>({width:innerWidth,total:document.documentElement.scrollWidth,elements:[...document.querySelectorAll('body *')].filter(e=>e.getBoundingClientRect().right>innerWidth+1).slice(0,8).map(e=>({tag:e.tagName,className:e.className,right:e.getBoundingClientRect().right}))}));
+  assert.ok(overflow.total<=overflow.width+1,'setup overflow '+label+' '+JSON.stringify(overflow));
   await page.getByRole('button',{name:'À plusieurs · même écran',exact:true}).click();await page.locator('#name-0').fill('Alice');await page.getByRole('button',{name:'Commencer l’aventure'}).click();await page.getByRole('button',{name:'Lancer le déplacement'}).waitFor();assert.equal(await page.locator('.space').count(),48);
   await page.getByRole('button',{name:'Règles',exact:true}).click();await page.getByText('Paramètres de cette adaptation',{exact:true}).waitFor();await page.getByRole('button',{name:'Fermer',exact:true}).click();
   const saved=fixture(false);await page.evaluate(({key,saved})=>localStorage.setItem(key,JSON.stringify(saved)),{key,saved});await page.reload();await page.getByRole('button',{name:'Reprendre la partie'}).click();
