@@ -1,0 +1,35 @@
+name: Validate playable board
+on:
+  push:
+    branches: [main, codex/plateau-jouable]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check JavaScript syntax
+        run: |
+          node --check app.js
+          node --check engine.js
+          node --check data.js
+      - name: Rules and complete game simulations
+        run: npm test
+      - name: Install browser test dependencies
+        run: npm install --no-save --ignore-scripts playwright@1.56.1
+      - name: Install Chromium and WebKit
+        run: npx playwright install --with-deps chromium webkit
+      - name: Desktop and mobile browser journeys
+        run: node tests/browser.mjs
+      - name: Save browser screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: board-browser-checks
+          path: qa/

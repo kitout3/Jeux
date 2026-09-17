@@ -1,0 +1,9 @@
+{
+  "name": "quetes-anomalies-plateau",
+  "version": "4.0.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "test": "node --test tests/*.test.js"
+  }
+}
